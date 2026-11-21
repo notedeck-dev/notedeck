@@ -5,7 +5,6 @@
 use std::fs;
 
 use notecli::error::NoteDeckError;
-use tauri::Manager;
 
 use notecore::app_dir::Layout;
 use notecore::settings_store as store;
@@ -42,9 +41,7 @@ pub fn get_settings_dir(app: tauri::AppHandle) -> Result<String> {
 #[tauri::command]
 #[specta::specta]
 pub fn get_log_dir(app: tauri::AppHandle) -> Result<String> {
-    let dir = app
-        .path()
-        .app_log_dir()
+    let dir = crate::app_dir::resolve_log_dir(&app)
         .map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?;
     let _ = std::fs::create_dir_all(&dir);
     Ok(dir.to_string_lossy().to_string())

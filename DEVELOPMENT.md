@@ -335,6 +335,17 @@ Vite 8 (Rolldown + OXC ベース) を使用。`vite.config.ts` で以下のカ�
 - **stripUnusedFonts** — 未使用フォント形式（woff, ttf）をビルドから除外
 - **subsetTablerIcons** — ソースコードから使用中のアイコンを検出し、CSS ルールとフォントをサブセット化
 
+### Microsoft Store 版 (MSIX)（[#849](https://github.com/notedeck-dev/notedeck/issues/849)）
+
+Windows は、直接配布 (NSIS / winget) とは別に Microsoft Store 向けの MSIX を作れる。Store が署名し直すので、開発者の証明書は要らない。仕様と不採用の判断は #849 にある。
+
+- **同じ exe を包むだけ。** Store 用にビルドし直すものは無い。Store 版かどうかは、アプリが実行時に OS へ聞いて見分ける (`src-tauri/src/packaged.rs`)。外から偽れる口 (環境変数など) は足さない
+- **パッケージの中での違い**: データ・ログ・WebView のデータをパッケージ専用の場所に置く / 資格情報を別の名前で保存する / updater を動かさない / プロトコルを実行時に登録しない / 常駐と自動起動を出さない / OS 通知を自分の識別子で出す
+- **新しく「自分で自分を更新・登録する」処理を足すとき**は、`packaged::current().manages_itself()` で分ける。データの場所を求めるときは Tauri の `app_data_dir()` / `app_log_dir()` を直接呼ばず、`app_dir.rs` の `resolve_app_dir` / `resolve_log_dir` を通す (直接呼ぶと、直接配布版のフォルダが残っている端末でそちらを使う)
+- **包む**: `scripts/build-msix.ps1` (マニフェストの雛形は `src-tauri/msix/AppxManifest.xml`)。出力は未署名で、Partner Center に手でアップロードする
+- **確かめる**: `scripts/verify-msix.ps1` が、試験署名した写しを入れて、直接配布版のフォルダに触らないこと・プロトコルが届くこと・通知を出す準備ができることを見る。GitHub Actions の「Microsoft Store package (MSIX)」を手動実行すると、公開済みの版 (またはそのブランチのソース) から包んで確かめ、成果物に MSIX を置く
+- 手元の Windows が無くても、CI の Windows の runner で測れる。OS の振り替え (ファイルシステムの仮想化) の挙動は Microsoft の文書と実測が食い違う箇所があるので、前提にするときは実測する
+
 ### Rust ビルド成果物の肥大
 
 `target` (workspace root。以前は `src-tauri/target`) は放置すると際限なく膨らむ。cargo は古い成果物を自動 GC しないため、開発期間に比例して単調増加する。要因は 3 つ:

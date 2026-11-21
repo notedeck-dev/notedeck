@@ -22,6 +22,12 @@ export interface TauriEventPayloads {
   'nd:backend-fatal': string
   /** 内蔵 HTTP サーバーが中継のポートを取れなかった (#1231)。payload はポート番号 */
   'nd:http-relay-unavailable': number
+  /**
+   * 直接配布版と Microsoft Store 版を両方入れた端末で、もう一方の版が開かれた (#849)。
+   * 単一起動の名前が同じなので、後から開いた版は起動せずこの版が前に出る。payload は
+   * 開こうとされた側
+   */
+  'nd:other-distribution-opened': 'direct' | 'microsoftStore'
   'nd:hwheel': number
   'nd:ogp-hints': Record<string, OgpData>
   'nd:ai-chat-event': AiChatEventPayload

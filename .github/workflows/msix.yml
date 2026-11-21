@@ -1,0 +1,110 @@
+# Microsoft Store 版 (MSIX) を包んで確かめる (#849)。
+#
+# リリースの workflow とは別にしてある: Store への提出は節目の版だけ手で行い、MSIX の失敗で
+# ほかの OS のリリースを止めないため。公開済みの版のインストーラから exe を取り出して包む
+# (Store 用にビルドし直すものは無い)。タグを切る前に確かめたいときは from_source で、
+# 選んだブランチのソースからビルドする。
+#
+# 成果物は未署名の MSIX。Partner Center に手でアップロードする (Store が署名し直す)。
+name: Microsoft Store package (MSIX)
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '公開済みの版のタグ (例: v1.110.0)。from_source のときは版の表記にだけ使う'
+        required: true
+        type: string
+      from_source:
+        description: 'このブランチのソースからビルドして包む (タグを切る前の確認用)'
+        type: boolean
+        default: false
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.tag }}
+  cancel-in-progress: true
+
+jobs:
+  msix:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ inputs.tag }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Resolve the version
+        shell: pwsh
+        run: |
+          $version = $env:TAG -replace '^v', ''
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "tag must look like vX.Y.Z: $env:TAG" }
+          "VERSION=$version" >> $env:GITHUB_ENV
+
+      # ---- 公開済みの版から取り出す (既定)
+      # インストーラを一度入れて、インストール先から exe を取り出す。アプリは起動しない
+      - name: Take the binaries from the published installer
+        if: ${{ !inputs.from_source }}
+        shell: pwsh
+        run: |
+          gh release download $env:TAG -p "NoteDeck-$env:VERSION-windows-x64-setup.exe" -D dl
+          Start-Process (Get-ChildItem dl\*.exe)[0].FullName -ArgumentList '/S' -Wait
+          $exe = Get-ChildItem "$env:LOCALAPPDATA", "$env:ProgramFiles" -Recurse -Filter notedeck.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $exe) { throw 'the installed notedeck.exe was not found' }
+          New-Item -ItemType Directory input | Out-Null
+          Copy-Item (Join-Path $exe.DirectoryName 'notedeck.exe'), (Join-Path $exe.DirectoryName 'notemaid.exe') input
+          $uninstall = Join-Path $exe.DirectoryName 'uninstall.exe'
+          if (Test-Path $uninstall) { Start-Process $uninstall -ArgumentList '/S' -Wait }
+
+      # ---- ソースからビルドする (from_source)
+      - name: Install pnpm
+        if: ${{ inputs.from_source }}
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        if: ${{ inputs.from_source }}
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install Rust stable
+        if: ${{ inputs.from_source }}
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        if: ${{ inputs.from_source }}
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: '. -> target'
+          prefix-key: msix-v1
+
+      - name: Build from source
+        if: ${{ inputs.from_source }}
+        shell: bash
+        run: |
+          pnpm install
+          pnpm build:sidecar x86_64-pc-windows-msvc
+          pnpm tauri build --no-bundle --config src-tauri/tauri.sidecar.conf.json
+          mkdir input
+          cp target/release/notedeck.exe input/
+          cp src-tauri/binaries/notemaid-x86_64-pc-windows-msvc.exe input/notemaid.exe
+
+      # ---- 包む
+      - name: Pack (unsigned, the one to submit)
+        shell: pwsh
+        run: ./scripts/build-msix.ps1 -InputDir input -Version $env:VERSION -OutFile "NoteDeck-$env:VERSION-msstore.msix"
+
+      # ---- 確かめる。落ちたら下の artifact は出さない
+      - name: Install a test-signed copy and check it
+        shell: pwsh
+        run: |
+          ./scripts/build-msix.ps1 -InputDir input -Version $env:VERSION -OutFile test.msix -Publisher 'CN=NoteDeckTest'
+          ./scripts/verify-msix.ps1 -Msix test.msix -InputDir input
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: msstore-msix
+          path: NoteDeck-*-msstore.msix
+          if-no-files-found: error

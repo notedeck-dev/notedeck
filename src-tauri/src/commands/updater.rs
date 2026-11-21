@@ -102,6 +102,11 @@ fn offline_enabled(app: &tauri::AppHandle) -> bool {
 pub async fn check(app: &tauri::AppHandle, force: bool) -> UpdateState {
     use tauri::Manager;
     let state = app.state::<UpdaterState>();
+    // Microsoft Store 版は Store が更新する (#849)。ここで確認すると NSIS を落として
+    // 直接配布版を別に入れてしまう。入口 (起動後 / About / オフライン解除) は全部ここを通る
+    if !crate::packaged::current().manages_itself() {
+        return state.snapshot();
+    }
     #[cfg(all(desktop, feature = "desktop"))]
     {
         use std::sync::atomic::Ordering;
@@ -151,6 +156,11 @@ pub async fn check(app: &tauri::AppHandle, force: bool) -> UpdateState {
 pub async fn install(app: &tauri::AppHandle) -> Result<()> {
     use tauri::Manager;
     let state = app.state::<UpdaterState>();
+    if !crate::packaged::current().manages_itself() {
+        return Err(notecli::error::NoteDeckError::InvalidInput(
+            "updates are delivered by the Microsoft Store".into(),
+        ));
+    }
     #[cfg(all(desktop, feature = "desktop"))]
     {
         let Some(update) = state

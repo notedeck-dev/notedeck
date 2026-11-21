@@ -80,6 +80,9 @@ pub fn run(args: RunArgs) -> i32 {
         crate::daemon::SecretsBackend::Keychain => {
             // アプリと同じ扱い: キーチェーンが無くても起動は続け、トークンが要る呼び出しが
             // 個別に失敗する (子プロセスが即死するとアプリ側の中継が宙に浮くため)
+            if let Some(name) = &args.keychain_service {
+                notecli::keychain::set_service(name);
+            }
             if let Err(e) = notecli::keychain::init_store() {
                 tracing::warn!("keychain unavailable ({e}); AI calls that need tokens will fail");
             }

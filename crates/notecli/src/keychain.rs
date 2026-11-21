@@ -1,8 +1,24 @@
 use crate::error::NoteDeckError;
 
-#[cfg(feature = "keyring")]
-/// keychain の service 名。移行パッケージ (notecore::migration) も同じ名前空間を写す
+/// keychain の既定の service 名。移行パッケージ (notecore::migration) も同じ名前空間を写す
 pub const SERVICE: &str = "notedeck";
+
+static SERVICE_OVERRIDE: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
+/// 保存に使う service 名を差し替える (notedeck#849)。同じ利用者の別の配布形態
+/// (Microsoft Store 版) が、資格情報を既定の名前空間と分けるための口。どちらの形態かは
+/// 呼ぶ側が決め、ここでは見分けない。最初の読み書きより前に 1 回だけ呼ぶ (2 回目は無視)
+pub fn set_service(name: &str) {
+    let _ = SERVICE_OVERRIDE.set(name.to_string());
+}
+
+/// 今の service 名
+pub fn service() -> &'static str {
+    SERVICE_OVERRIDE
+        .get()
+        .map(String::as_str)
+        .unwrap_or(SERVICE)
+}
 
 /// Initialize the platform-specific credential store.
 /// Must be called once before any keychain operations.
@@ -109,7 +125,7 @@ pub fn init_store_with_android_context(
 #[cfg(all(feature = "keyring", target_os = "linux"))]
 fn probe_roundtrip(store: &std::sync::Arc<zbus_secret_service_keyring_store::Store>) -> bool {
     use keyring_core::api::CredentialStoreApi;
-    let Ok(entry) = store.build(SERVICE, "__store_probe__", None) else {
+    let Ok(entry) = store.build(service(), "__store_probe__", None) else {
         return false;
     };
     if entry.set_password("probe").is_err() {
@@ -139,7 +155,7 @@ pub fn is_persistent() -> bool {
 
 #[cfg(feature = "keyring")]
 pub fn store_token(account_id: &str, token: &str) -> Result<(), NoteDeckError> {
-    let entry = keyring_core::Entry::new(SERVICE, account_id)
+    let entry = keyring_core::Entry::new(service(), account_id)
         .map_err(|e| NoteDeckError::Keychain(e.to_string()))?;
     entry
         .set_password(token)
@@ -148,7 +164,7 @@ pub fn store_token(account_id: &str, token: &str) -> Result<(), NoteDeckError> {
 
 #[cfg(feature = "keyring")]
 pub fn get_token(account_id: &str) -> Result<Option<String>, NoteDeckError> {
-    let entry = keyring_core::Entry::new(SERVICE, account_id)
+    let entry = keyring_core::Entry::new(service(), account_id)
         .map_err(|e| NoteDeckError::Keychain(e.to_string()))?;
     match entry.get_password() {
         Ok(token) => Ok(Some(token)),
@@ -159,7 +175,7 @@ pub fn get_token(account_id: &str) -> Result<Option<String>, NoteDeckError> {
 
 #[cfg(feature = "keyring")]
 pub fn delete_token(account_id: &str) -> Result<(), NoteDeckError> {
-    let entry = keyring_core::Entry::new(SERVICE, account_id)
+    let entry = keyring_core::Entry::new(service(), account_id)
         .map_err(|e| NoteDeckError::Keychain(e.to_string()))?;
     match entry.delete_credential() {
         Ok(()) => Ok(()),
