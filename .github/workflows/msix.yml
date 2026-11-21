@@ -9,10 +9,6 @@
 name: Microsoft Store package (MSIX)
 
 on:
-  # 一時的: この workflow は main に入るまで手動実行できないので、実装ブランチへの push で回す。
-  # マージの前に消す
-  push:
-    branches: [feat/msstore-849]
   workflow_dispatch:
     inputs:
       tag:
@@ -42,8 +38,6 @@ jobs:
       - name: Resolve the version
         shell: pwsh
         run: |
-          # push で回すとき (入力なし) は、ソースの版を使う
-          if (-not $env:TAG) { $env:TAG = 'v' + (Get-Content package.json -Raw | ConvertFrom-Json).version }
           $version = $env:TAG -replace '^v', ''
           if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "tag must look like vX.Y.Z: $env:TAG" }
           "VERSION=$version" >> $env:GITHUB_ENV
@@ -51,7 +45,7 @@ jobs:
       # ---- 公開済みの版から取り出す (既定)
       # インストーラを一度入れて、インストール先から exe を取り出す。アプリは起動しない
       - name: Take the binaries from the published installer
-        if: ${{ !inputs.from_source && github.event_name != 'push' }}
+        if: ${{ !inputs.from_source }}
         shell: pwsh
         run: |
           gh release download $env:TAG -p "NoteDeck-$env:VERSION-windows-x64-setup.exe" -D dl
@@ -65,29 +59,29 @@ jobs:
 
       # ---- ソースからビルドする (from_source)
       - name: Install pnpm
-        if: ${{ inputs.from_source || github.event_name == 'push' }}
+        if: ${{ inputs.from_source }}
         uses: pnpm/action-setup@v4
 
       - name: Setup Node.js
-        if: ${{ inputs.from_source || github.event_name == 'push' }}
+        if: ${{ inputs.from_source }}
         uses: actions/setup-node@v6
         with:
           node-version-file: .node-version
           cache: pnpm
 
       - name: Install Rust stable
-        if: ${{ inputs.from_source || github.event_name == 'push' }}
+        if: ${{ inputs.from_source }}
         uses: dtolnay/rust-toolchain@stable
 
       - name: Rust cache
-        if: ${{ inputs.from_source || github.event_name == 'push' }}
+        if: ${{ inputs.from_source }}
         uses: swatinem/rust-cache@v2
         with:
           workspaces: '. -> target'
           prefix-key: msix-v1
 
       - name: Build from source
-        if: ${{ inputs.from_source || github.event_name == 'push' }}
+        if: ${{ inputs.from_source }}
         shell: bash
         run: |
           pnpm install
