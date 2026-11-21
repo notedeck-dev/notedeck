@@ -4,11 +4,13 @@
 # 試験用の自己署名証明書を作って署名し、入れて起動する。発行者を差し替えているので、提出物と
 # 完全に同じパッケージではない。
 #
-# 見るのは「直接配布版のデータに触らず、専用の場所だけを使うこと」。そのために、直接配布版が
-# 使うフォルダを先に作っておく (無い端末では、OS の振り替えだけでも専用の場所に行くので、
-# アプリが場所を明示していることの証明にならない)。
+# 見るのは「直接配布版のデータに触らず、専用の場所だけを使うこと」。そのために、同じ exe を
+# 先に直接配布版として動かしてデータを作っておく (データが無い端末では、OS の振り替えだけでも
+# 専用の場所に行くので、アプリが場所を明示していることの証明にならない)。
 param(
-  [Parameter(Mandatory)][string]$Msix
+  [Parameter(Mandatory)][string]$Msix,
+  # 包む前の exe が入ったフォルダ。直接配布版として一度動かす
+  [Parameter(Mandatory)][string]$InputDir
 )
 $ErrorActionPreference = 'Stop'
 $id = 'com.notedeck.desktop'
@@ -30,13 +32,22 @@ Import-Certificate -FilePath $cer -CertStoreLocation 'Cert:\LocalMachine\Trusted
 & $signtool.FullName sign /fd SHA256 /f $pfx /p test $Msix | Select-Object -Last 1
 if ($LASTEXITCODE -ne 0) { throw 'signtool failed' }
 
-# --- 直接配布版のフォルダが残っている端末を再現する
+# --- 同じ exe を、包まずに直接配布版として動かす。2 つの役目がある:
+#     (1) パッケージの外では「外」と見分けること (誤ると直接配布版の updater が止まる)
+#     (2) 直接配布版のデータが残っている端末を再現すること
 $realRoaming = Join-Path $env:APPDATA $id
 $realLocal = Join-Path $env:LOCALAPPDATA $id
-foreach ($d in $realRoaming, $realLocal) {
-  New-Item -ItemType Directory $d -Force | Out-Null
-  'left by the direct version' | Set-Content (Join-Path $d 'marker.txt')
-}
+Start-Process (Join-Path (Resolve-Path $InputDir) 'notedeck.exe')
+Start-Sleep 25
+Get-Process notedeck, notemaid -ErrorAction SilentlyContinue | Stop-Process -Force
+Start-Sleep 3
+$directLog = Get-ChildItem (Join-Path $realLocal 'logs') -Filter 'notedeck.log*' -ErrorAction SilentlyContinue |
+  ForEach-Object { Get-Content $_.FullName -Raw } | Out-String
+Check ($directLog -match [regex]::Escape('[packaged] Outside')) 'outside a package, the app sees itself as the direct version'
+Check (Test-Path (Join-Path $realRoaming 'notecli.db')) 'the direct version keeps its data in the real AppData'
+# 直接配布版は起動時にスキームを登録する。Store 版の確認の前に消しておく
+Remove-Item 'HKCU:\Software\Classes\notedeck', 'HKCU:\Software\Classes\notedeck-notification' -Recurse -Force -ErrorAction SilentlyContinue
+$packagedStart = Get-Date
 
 Add-AppxPackage -Path $Msix
 $pkg = Get-AppxPackage | Where-Object { $_.Name -like 'NotedeckDev.NoteDeck*' } | Select-Object -First 1
@@ -51,7 +62,7 @@ try {
   Start-Sleep 30
 
   $procs = Get-CimInstance Win32_Process | Where-Object { $_.Name -in 'notedeck.exe', 'notemaid.exe' }
-  Check ([bool]($procs | Where-Object Name -eq 'notedeck.exe')) 'the app is running inside the package'
+  Check ([bool]($procs | Where-Object { $_.Name -eq 'notedeck.exe' -and $_.ExecutablePath -like '*\WindowsApps\*' })) 'the app is running inside the package'
   $maid = $procs | Where-Object Name -eq 'notemaid.exe' | Select-Object -First 1
   Check ([bool]$maid) 'notemaid runs as a child of the app'
   if ($maid) {
@@ -69,6 +80,7 @@ try {
   Start-Sleep 10
   $log = Get-ChildItem (Join-Path $privLocal 'logs') -Filter 'notedeck.log*' -ErrorAction SilentlyContinue |
     ForEach-Object { Get-Content $_.FullName -Raw } | Out-String
+  Check ($log -match '\[packaged\] Inside') 'inside the package, the app sees itself as the Store version'
   Check ($log -match [regex]::Escape('[deep-link] received: notedeck://msix-check/hello')) 'notedeck:// reaches the running app'
   # アプリが実行時に登録すると、起動先のコマンドに自分の exe のパスが書かれる。キー自体は、
   # OS がマニフェストの宣言を反映して作ることがあるので、有無では見ない
@@ -85,12 +97,13 @@ finally {
   Start-Sleep 3
 }
 
-# 直接配布版のフォルダに何も増えていない。窓の位置を覚えるプラグインのファイルだけは、
-# Tauri が場所を決めるので除く
+# Store 版は、直接配布版のデータに触っていない (Store 版を起動してから書き換わったファイルが無い)。
+# 窓の位置を覚えるプラグインのファイルだけは、Tauri が場所を決めるので除く
 foreach ($d in $realRoaming, $realLocal) {
-  $extra = Get-ChildItem $d -Recurse -File -Force | Where-Object { $_.Name -notin 'marker.txt', '.window-state.json' }
-  Check (-not $extra) "nothing was written to $d"
-  $extra | ForEach-Object { Write-Host "     $($_.FullName)" }
+  $touched = Get-ChildItem $d -Recurse -File -Force |
+    Where-Object { $_.LastWriteTime -gt $packagedStart -and $_.Name -ne '.window-state.json' }
+  Check (-not $touched) "the Store version did not touch $d"
+  $touched | Select-Object -First 10 | ForEach-Object { Write-Host "     $($_.FullName)" }
 }
 
 Remove-AppxPackage -Package $pkg.PackageFullName

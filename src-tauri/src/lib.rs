@@ -253,6 +253,9 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         // Initialized here (not earlier) because the log dir needs the app handle;
         // if it can't be resolved we fall back to stdout-only so startup never blocks.
         init_logging(app);
+        // 配布の形態 (#849)。直接配布版で「外」以外になると updater が止まるので、
+        // 問い合わせのログから分かるようにしておく (CI もこの行で確かめる)
+        tracing::info!("[packaged] {:?}", packaged::current());
 
         // panic をログディレクトリに残す。Android は adb を繋げない環境が普通なので、
         // 次回起動時に UI へ出すのが実質唯一のクラッシュ調査手段になる。

@@ -107,7 +107,7 @@ jobs:
         shell: pwsh
         run: |
           ./scripts/build-msix.ps1 -InputDir input -Version $env:VERSION -OutFile test.msix -Publisher 'CN=NoteDeckTest'
-          ./scripts/verify-msix.ps1 -Msix test.msix
+          ./scripts/verify-msix.ps1 -Msix test.msix -InputDir input
 
       - uses: actions/upload-artifact@v6
         with:
