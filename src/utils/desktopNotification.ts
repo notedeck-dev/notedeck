@@ -1,5 +1,8 @@
-import { commands } from '@/bindings'
-import { resolveAppDistribution } from '@/composables/useAppDistribution'
+import { type AppDistribution, commands } from '@/bindings'
+import {
+  resolveAppDistribution,
+  useAppDistribution,
+} from '@/composables/useAppDistribution'
 
 export type NotificationContext = {
   noteId?: string
@@ -67,10 +70,10 @@ export function sendDesktopNotification(
   if (document.hasFocus()) return
 
   // Microsoft Store 版は通知プラグインが名乗る識別子では出せない (#849)。Rust 側の経路で出す。
-  // どちらの形態かの答えを待ってから経路を選ぶ: 起動直後は答えがまだ届いておらず、待たずに
-  // 選ぶと Store 版の最初の通知がプラグインへ行って出ない
+  // どちらの形態かの答えがまだ届いていない (起動直後) ときだけ、待ってから経路を選ぶ:
+  // 待たずに選ぶと、Store 版の最初の通知がプラグインへ行って出ない
   const mod = notificationModule
-  void resolveAppDistribution().then((distribution) => {
+  const send = (distribution: AppDistribution) => {
     if (distribution === 'microsoftStore') {
       // クリックは Rust 側の経路 (NotificationClicked) で届くので、ここでは覚えない
       void commands.showOsNotification(
@@ -94,5 +97,11 @@ export function sendDesktopNotification(
     } else {
       mod.sendNotification({ title, body })
     }
-  })
+  }
+  const { distribution } = useAppDistribution()
+  if (distribution.value === 'unknown') {
+    void resolveAppDistribution().then(send)
+  } else {
+    send(distribution.value)
+  }
 }
