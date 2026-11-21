@@ -39,6 +39,7 @@ mod layout_boot;
 #[cfg(target_os = "android")]
 mod notify_cursor_file;
 mod os_notify;
+mod packaged;
 mod pending_inbox;
 mod push_flow;
 mod push_store_file;
@@ -88,9 +89,7 @@ fn init_logging(app: &tauri::App) {
     });
 
     // File layer is optional: skipped if the log dir can't be created.
-    let file_layer = app
-        .path()
-        .app_log_dir()
+    let file_layer = app_dir::resolve_log_dir(app)
         .ok()
         .filter(|dir| std::fs::create_dir_all(dir).is_ok())
         .and_then(|dir| {
@@ -121,6 +120,14 @@ fn init_logging(app: &tauri::App) {
 }
 
 fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
+    // Microsoft Store 版 (#849): WebView のデータと資格情報を、直接配布版と別にする。
+    // 窓は setup より前に作られ、WebView2 は環境変数を引数より優先するので、ここ (スレッドを
+    // 作る前) で向ける。資格情報の名前は最初の読み書きより前に決める
+    if let Some(dirs) = packaged::dirs() {
+        std::env::set_var("WEBVIEW2_USER_DATA_FOLDER", &dirs.local);
+        notecli::keychain::set_service(packaged::KEYCHAIN_SERVICE);
+    }
+
     // Limit tokio worker threads (~2MB stack per thread).
     // 4 threads balance concurrency (multi-server WS + OGP + DB) vs memory.
     // Leak the runtime so the handle remains valid for the app's lifetime.
@@ -249,7 +256,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
 
         // panic をログディレクトリに残す。Android は adb を繋げない環境が普通なので、
         // 次回起動時に UI へ出すのが実質唯一のクラッシュ調査手段になる。
-        if let Ok(dir) = app.path().app_log_dir() {
+        if let Ok(dir) = app_dir::resolve_log_dir(app) {
             notecore::crash_report::install_panic_hook(dir);
         }
 
@@ -576,9 +583,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         app.manage(commands::HttpRelayUnavailable::default());
 
         // dev ダッシュボード (#977) のログ tail 用に /api インデックスで開示する
-        let log_dir = app
-            .path()
-            .app_log_dir()
+        let log_dir = app_dir::resolve_log_dir(app)
             .ok()
             .map(|p| p.to_string_lossy().to_string());
 
@@ -852,16 +857,25 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             // 無い環境 (最小構成 Linux / CI) では spawn が ENOENT で失敗するが、
             // deep-link 以外の全機能は無関係なので起動を止めない
             // (? で伝播すると setup hook 全体が panic しアプリが死ぬ)
+            // Microsoft Store 版はマニフェストの宣言に任せ、実行時には登録しない (#849)。
+            // 登録すると、外から起動できないパスを起動先にし、直接配布版の登録も壊す
+            let registers_schemes = packaged::current().manages_itself();
             #[cfg(not(mobile))]
-            if let Err(e) = app.deep_link().register("notedeck") {
-                tracing::warn!("[deep-link] scheme registration failed (non-fatal): {e}");
+            if registers_schemes {
+                if let Err(e) = app.deep_link().register("notedeck") {
+                    tracing::warn!("[deep-link] scheme registration failed (non-fatal): {e}");
+                }
             }
             // Windows toast の protocol 起動用スキーム (#754)。NSIS は conf の
             // schemes から登録するが、dev ビルドでも動くよう runtime でも登録する
             #[cfg(target_os = "windows")]
-            if let Err(e) = app.deep_link().register(os_notify::NOTIFICATION_PROTOCOL) {
-                tracing::warn!("[deep-link] notification scheme registration failed (non-fatal): {e}");
+            if registers_schemes {
+                if let Err(e) = app.deep_link().register(os_notify::NOTIFICATION_PROTOCOL) {
+                    tracing::warn!("[deep-link] notification scheme registration failed (non-fatal): {e}");
+                }
             }
+            #[cfg(mobile)]
+            let _ = registers_schemes;
 
             let deep_link_handle = app.app_handle().clone();
             app.deep_link().on_open_url(move |event| {
@@ -1263,6 +1277,7 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::fetch_image_base64,
             commands::fetch_image_bytes,
             commands::get_cli_commands,
+            commands::app_distribution,
             commands::get_rustc_version,
             ui_lang::set_ui_language,
             commands::get_openapi_spec,

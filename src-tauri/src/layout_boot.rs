@@ -24,7 +24,11 @@ pub fn prepare(app_dir: &Path) -> LayoutMigrationReport {
         return LayoutMigrationReport::default();
     }
     let mut notices = Vec::new();
-    if let Some(endpoint) = transport::default_endpoint() {
+    // Microsoft Store 版は常駐を使わない (#849)。既定の pipe に居るのは直接配布版の常駐で、
+    // データも別なので、止める理由が無い
+    let endpoint =
+        transport::default_endpoint().filter(|_| crate::packaged::current().manages_itself());
+    if let Some(endpoint) = endpoint {
         let stopped = tauri::async_runtime::block_on(stop_resident(&endpoint));
         match stopped {
             Probe::NotRunning => {}

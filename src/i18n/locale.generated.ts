@@ -2566,6 +2566,8 @@ export interface Locale {
     readonly "update": string
     /** 更新の準備ができました */
     readonly "updateReady": string
+    /** Microsoft Store から更新されます */
+    readonly "updatedByStore": string
     /** v{version} をダウンロード中 */
     readonly "downloading": ParameterizedString<'version'>
     /** 再起動 */

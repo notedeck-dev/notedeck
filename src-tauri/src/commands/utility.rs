@@ -23,6 +23,30 @@ pub fn get_media_proxy_token(
     Some(token.0.clone())
 }
 
+/// このアプリがどの経路で配られたものか (#849)。フロントが、自分で自分を更新・登録する
+/// 操作 (更新の確認、自動起動) を出すかどうかを決めるのに使う
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub enum AppDistribution {
+    /// 直接配布 (インストーラ / パッケージマネージャ)
+    Direct,
+    /// Microsoft Store (MSIX)。更新は Store が行う
+    MicrosoftStore,
+    /// 見分けられなかった。自分で更新・登録する操作は出さない
+    Unknown,
+}
+
+// nd-command: local
+#[tauri::command]
+#[specta::specta]
+pub fn app_distribution() -> AppDistribution {
+    match crate::packaged::current() {
+        crate::packaged::Packaging::Outside => AppDistribution::Direct,
+        crate::packaged::Packaging::Inside { .. } => AppDistribution::MicrosoftStore,
+        crate::packaged::Packaging::Unknown => AppDistribution::Unknown,
+    }
+}
+
 // nd-command: local
 #[tauri::command]
 #[specta::specta]

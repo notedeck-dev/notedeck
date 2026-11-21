@@ -55,7 +55,7 @@ fn write_backend(app_dir: &Path, backend: Backend) {
 
 /// 構成に従って繋ぐ先を決める。None = in-process で回す
 pub async fn launch(app_dir: &Path, backend: Backend) -> Option<Launched> {
-    match backend {
+    match effective_backend(backend, crate::packaged::current().manages_itself()) {
         Backend::Embedded => None,
         Backend::Resident => {
             // 常駐にだけ繋ぐ構成。ログイン時タスクが無い (外した / 古い構成ファイルが残った) なら
@@ -77,11 +77,23 @@ pub async fn launch(app_dir: &Path, backend: Backend) -> Option<Launched> {
     }
 }
 
+/// Microsoft Store 版は常駐を使わない (#849): ログイン時の起動を登録する手段がまだ無く、
+/// 既定の pipe に居る常駐は直接配布版のもの (データも資格情報も別)。構成が常駐を指していても
+/// 子プロセスで動かす
+fn effective_backend(backend: Backend, manages_itself: bool) -> Backend {
+    match backend {
+        Backend::Resident if !manages_itself => Backend::Auto,
+        other => other,
+    }
+}
+
 /// 既定: 常駐が答えれば繋ぎ、居なければ同梱の sidecar を子プロセスで起動する
 async fn launch_auto(app_dir: &Path) -> Option<Launched> {
     {
         {
-            if let Some(endpoint) = transport::default_endpoint() {
+            let resident = transport::default_endpoint()
+                .filter(|_| crate::packaged::current().manages_itself());
+            if let Some(endpoint) = resident {
                 if answering(&endpoint).await {
                     tracing::info!(%endpoint, "[notemaid] resident notemaid is answering");
                     return Some(Launched {
@@ -114,6 +126,15 @@ async fn launch_auto(app_dir: &Path) -> Option<Launched> {
     }
 }
 
+/// Microsoft Store 版は資格情報の名前空間が別 (#849)。子にも同じ名前を渡さないと、子は
+/// 既定の名前空間 (直接配布版) を読みにいく
+fn keychain_service_args(packaging: &crate::packaged::Packaging) -> Vec<&'static str> {
+    match packaging.family_name() {
+        Some(_) => vec!["--keychain-service", crate::packaged::KEYCHAIN_SERVICE],
+        None => Vec::new(),
+    }
+}
+
 fn spawn(bin: &Path, app_dir: &Path, endpoint: &Endpoint) -> std::io::Result<Child> {
     let mut cmd = Command::new(bin);
     cmd.arg("run")
@@ -126,6 +147,7 @@ fn spawn(bin: &Path, app_dir: &Path, endpoint: &Endpoint) -> std::io::Result<Chi
         .arg("--log")
         .arg("file")
         .arg("--exit-on-stdin-close")
+        .args(keychain_service_args(crate::packaged::current()))
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
@@ -212,6 +234,12 @@ pub struct ResidentStatus {
 /// 常駐の ExecStart に書いてよいパスか。AppImage のマウント先や Nix store はログインごと /
 /// 更新ごとに変わるので拒む (standalone のバイナリを入れてもらう)
 fn stable_sidecar() -> Result<PathBuf, String> {
+    if !crate::packaged::current().manages_itself() {
+        return Err(
+            "the Microsoft Store version cannot keep the AI running after the app closes yet"
+                .into(),
+        );
+    }
     let p = sidecar_path().ok_or("no notemaid sidecar next to the app")?;
     let text = p.display().to_string();
     if text.contains("/.mount_") || text.starts_with("/tmp/") {
@@ -433,6 +461,39 @@ pub fn restart_resident() -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::packaged::Packaging;
+
+    #[test]
+    fn store_version_never_uses_a_resident_even_if_the_config_says_so() {
+        assert_eq!(effective_backend(Backend::Resident, false), Backend::Auto);
+        assert_eq!(effective_backend(Backend::Auto, false), Backend::Auto);
+        assert_eq!(
+            effective_backend(Backend::Embedded, false),
+            Backend::Embedded
+        );
+    }
+
+    #[test]
+    fn direct_version_keeps_the_configured_backend() {
+        assert_eq!(
+            effective_backend(Backend::Resident, true),
+            Backend::Resident
+        );
+    }
+
+    #[test]
+    fn the_child_gets_the_store_keychain_namespace_only_inside_a_package() {
+        let inside = Packaging::Inside {
+            family_name: "Fam_1".into(),
+        };
+        assert_eq!(
+            keychain_service_args(&inside),
+            ["--keychain-service", crate::packaged::KEYCHAIN_SERVICE]
+        );
+        assert!(keychain_service_args(&Packaging::Outside).is_empty());
+        // 不明のときはデータの場所も既定のままなので、資格情報も既定のまま
+        assert!(keychain_service_args(&Packaging::Unknown).is_empty());
+    }
 
     /// 子プロセス経路の通し: sidecar を起動 → 繋がる → 親が止めると終わる。
     /// notemaid の debug バイナリ (cargo build -p notemaid) が無ければ何もせず通す

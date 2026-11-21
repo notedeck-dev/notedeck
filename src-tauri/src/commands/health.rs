@@ -184,7 +184,7 @@ pub async fn build_health_report(
     // doctor とキャッシュの統計は notecore の担当 (データ面は常にこのプロセス)
     let core = notecore::commands::health::health_core(app_state).await?;
     let backend_ready = app_state.is_ready();
-    let log_dir_path = app.path().app_log_dir().ok();
+    let log_dir_path = crate::app_dir::resolve_log_dir(app).ok();
     let last_panic = log_dir_path
         .as_deref()
         .and_then(notecore::crash_report::read_last_panic);

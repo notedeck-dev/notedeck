@@ -8,6 +8,8 @@ license = "AGPL-3.0-only"
 notecli = { path = "../crates/notecli", features = ["specta"] }
 notecore = { path = "../crates/notecore" }
 notemaid = { path = "../crates/notemaid", default-features = false }
+# Microsoft Store 版の専用の場所を組むのに、%LOCALAPPDATA% の実体が要る (#849)。notecore 経由で既に依存ツリーにある
+dirs = "6"
 tauri = { version = "2", features = ["devtools"] }
 tauri-plugin-opener = "2"
 tauri-plugin-notification = "2"
@@ -83,6 +85,8 @@ windows = { version = "0.61", features = [
     # OS 状態 (#931 / #935 / #928): 電源状態・従量制回線・ntdll の動的解決
     "Win32_System_Power",
     "Win32_System_LibraryLoader",
+    # Microsoft Store 版 (MSIX) の中かどうかと、自分の通知の識別子 (#849)
+    "Win32_Storage_Packaging_Appx",
     "Networking_Connectivity",
 ] }
 

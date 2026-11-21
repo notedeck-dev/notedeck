@@ -1641,6 +1641,7 @@ _aboutContent:
   upToDate: "Up to date"
   update: "Update"
   updateReady: "Update ready to install"
+  updatedByStore: "Updated through the Microsoft Store"
   downloading: "Downloading v{version}"
   restart: "Restart"
   developerMode: "Developer mode"

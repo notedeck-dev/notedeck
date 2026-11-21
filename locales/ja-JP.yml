@@ -1413,6 +1413,7 @@ _aboutContent:
   upToDate: "最新"
   update: "アップデート"
   updateReady: "更新の準備ができました"
+  updatedByStore: "Microsoft Store から更新されます"
   downloading: "v{version} をダウンロード中"
   restart: "再起動"
   developerMode: "開発者モード"
