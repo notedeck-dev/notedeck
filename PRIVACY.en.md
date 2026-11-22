@@ -1,4 +1,4 @@
-<!-- sourceHash: 6e3d92014588 -->
+<!-- sourceHash: f66974147a54 -->
 # Privacy Policy
 
 NoteDeck is an integrated environment (IDE) for Misskey and other decentralized social networks. It runs on desktop (Windows / macOS / Linux) and Android. This document states how NoteDeck handles user data.
@@ -65,6 +65,15 @@ All of this stays on the user's machine, and the developers of NoteDeck have no 
 
 On Android, if the OS backup (Google backup / device-to-device transfer) is enabled, the OS stores and transfers the settings part of NoteDeck's data directory. Account information and the note cache (`notecli.db`), this-device-only state, the cache and the logs are included in neither. Memos, AI chat session history and the AI's persona and memory are included only in direct device-to-device transfer (Android 12 and later), not in cloud backups.
 
+## Microsoft Store version (Windows)
+
+The version installed from the Microsoft Store differs from the directly distributed version (installer / winget / zip) as follows.
+
+- **Data location**: the app's data, logs and WebView data are kept in a location private to the package (under `%LOCALAPPDATA%\Packages\<package name>\LocalCache\`). It does not use the data of the directly distributed version
+- **Uninstalling**: the OS removes this private location when the app is uninstalled
+- **Credentials**: stored in Credential Manager under the name `notedeck-msstore`, separate from the directly distributed version (`notedeck`). Credential Manager entries remain after uninstalling (this is how the OS works). To remove them, log out of the accounts and delete the connections before uninstalling, or delete the `notedeck-msstore` entries in Credential Manager
+- **Updates**: the app does not check for updates. Installation and updates are performed by the Microsoft Store, and are handled according to Microsoft's privacy policy
+
 ## Network communication
 
 NoteDeck communicates with other systems as listed below. In every case the user's device connects directly to the other party, and nothing is relayed by the developers of NoteDeck. The other party learns the IP address the connection comes from.
@@ -73,7 +82,7 @@ NoteDeck communicates with other systems as listed below. In every case the user
 2. **Media in notes and profiles** — images, video, audio and custom emoji are fetched from the servers that host them (which can be a different server or storage service from the one you logged in to)
 3. **AI providers** — only when AI chat is used. Compatible with the Anthropic Messages API / OpenAI Chat Completions API. When a local CLI is used as the AI, that CLI communicates with its own provider
 4. **External services the user has registered as connections** — services the user registered themselves, such as a translation API, are contacted only when that feature is used
-5. **Update check** — `https://github.com/notedeck-dev/notedeck/releases/latest` (Tauri Updater)
+5. **Update check** — `https://github.com/notedeck-dev/notedeck/releases/latest` (Tauri Updater). The Microsoft Store version does not do this
 6. **OGP fetching** — fetching OGP information for URLs in notes (can be turned off in settings). For some sites, the preview connects to that site's public API or embedded player
 7. **Store** — the listing and files of plugins, themes, widgets and skills are fetched from `store.notedeck.io` (when you open the store, install an item, or check for updates). This only downloads; no account information is sent
 8. **Pets** — the pet listing and images are fetched from `petdex.dev` (when choosing a pet)
@@ -111,7 +120,7 @@ When you use AI chat, the messages you enter and the context you allowed through
 - **Per account**: account menu → Log out → "Delete everything" removes the cache, the token and related data. That account's token in the OS keychain is removed as well
 - **AI API keys and secrets of external services**: deleting a connection also removes its secret from the OS keychain
 - **Everything**: delete the settings folder and its parent, the app data folder. **Credentials in the OS keychain live outside these folders, so this alone does not remove them.** Either do the two steps above first (log out of the accounts and delete the connections), or delete the `notedeck` entries in your OS's keychain manager. If the encrypted file is in use on Linux, also delete `~/.local/share/notecli/secrets.enc` and `~/.config/notecli/secret.key`
-- **Uninstalling**: follow the OS procedure for removing apps (on desktop, the settings folder is left for the user to delete separately)
+- **Uninstalling**: follow the OS procedure for removing apps (on desktop, the settings folder is left for the user to delete separately; for the Microsoft Store version, see "Microsoft Store version (Windows)" above)
 - **Android**: uninstalling the app, or clearing the app's storage in the OS settings, removes all data on the device
 - **Data on Misskey servers**: posts and the accounts themselves are held by each Misskey server. The developers of NoteDeck do not have them and cannot delete them. Use that server's own features to delete them
 
