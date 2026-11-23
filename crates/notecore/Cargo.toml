@@ -47,6 +47,8 @@ tempfile = { version = "3", optional = true }
 test-support = ["dep:tempfile"]
 
 [dev-dependencies]
+# テストで、版の違う DB を作るためだけに使う (#1438)
+rusqlite = { version = "0.41", features = ["bundled"] }
 tempfile = "3"
 # 画像待ちの締切のテストで時計を止める (start_paused)
 tokio = { version = "1", features = ["test-util"] }

@@ -10,6 +10,7 @@ import {
 import { i18n } from '@/i18n'
 import { nativeField } from '@/i18n/native'
 import { type ConfirmOptions, useConfirm } from '@/stores/confirm'
+import { AppError } from '@/utils/errors'
 
 defineProps<{
   initialTab?: 'notedeck' | 'db'
@@ -37,7 +38,7 @@ async function backupAction(
       await relaunch()
     }
   } catch (e) {
-    errorMessage.value = e instanceof Error ? e.message : String(e)
+    errorMessage.value = AppError.from(e).message
   } finally {
     loading.value = false
   }

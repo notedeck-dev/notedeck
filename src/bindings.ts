@@ -2234,8 +2234,7 @@ async exportDb() : Promise<Result<boolean, { code: string; message: string; apiC
  * Replaces the current database file. Caller should relaunch the app afterwards
  * so that Rust re-opens the new DB with a fresh connection.
  * 
- * 注意: V6 (note_timelines) 適用済みの DB は旧バージョンのアプリへ持ち込めない
- * (refinery の missing migration で open 不能。DB 自体は無傷)。
+ * このアプリより新しい版が移行した DB は、置き換えずに断る (#1438)。
  *
  * @see src-tauri/src/commands/utility.rs
  */

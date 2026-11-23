@@ -6751,6 +6751,10 @@ AI プロバイダーの API キーを登録すると使えるようになりま
       readonly "hostNotAllowed": ParameterizedString<'host'>
     }
     readonly "backup": {
+      /** このデータベースは、今のアプリより新しい版で作られているため取り込めません。アプリを更新してから取り込んでください */
+      readonly "dbNewer": string
+      /** このデータベースは、今のアプリでは開けないため取り込めません */
+      readonly "dbIncompatible": string
       /** スキップ (既存と内容が同じ): {items} */
       readonly "skippedSame": ParameterizedString<'items'>
       /** 別名で復元 (既存と衝突): {items} → {renamed} */
