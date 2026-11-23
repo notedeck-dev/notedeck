@@ -1,5 +1,5 @@
 ---
-sourceHash: 5ff74554eb20
+sourceHash: 26fc26834414
 ---
 
 # 설치
@@ -13,7 +13,7 @@ OS별 설치 프로그램은 [GitHub Releases](https://github.com/notedeck-dev/n
 | Linux | `.deb` / `.AppImage` / `.tar.gz` (앱 본체 + notemaid + systemd user unit) |
 | Android | `.apk` (CPU별로 `arm64` / `armv7` / `x86_64` 3종. 실제 기기는 대부분 `arm64`) |
 
-같은 Release에 AI 별도 프로세스 [notemaid](/ko/docs/notemaid)와 CLI인 notecli의 standalone 바이너리도 있습니다 (Linux와 Apple Silicon macOS용). 앱에는 notemaid가 함께 들어 있으므로 평소에는 필요 없습니다.
+같은 Release에 AI 별도 프로세스 [notemaid](/ko/docs/notemaid)와 CLI인 notecli의 standalone 바이너리도 있습니다 (둘 다 Linux와 Apple Silicon macOS용. notecli는 Windows용도 있습니다). 앱에는 notemaid가 함께 들어 있으므로 평소에는 필요 없습니다.
 
 ## 패키지 관리자
 

@@ -1,5 +1,5 @@
 ---
-sourceHash: 5ff74554eb20
+sourceHash: 26fc26834414
 ---
 
 # 安装
@@ -13,7 +13,7 @@ sourceHash: 5ff74554eb20
 | Linux | `.deb` / `.AppImage` / `.tar.gz`（应用本体 + notemaid + systemd user unit） |
 | Android | `.apk`（按 CPU 分为 `arm64` / `armv7` / `x86_64` 3 种。绝大多数真机是 `arm64`） |
 
-同一个 Release 中还有 AI 的独立进程 [notemaid](/zh/docs/notemaid) 和 CLI notecli 的独立二进制文件（面向 Linux 和 Apple Silicon 的 macOS）。应用已内置 notemaid，平时不需要它们。
+同一个 Release 中还有 AI 的独立进程 [notemaid](/zh/docs/notemaid) 和 CLI notecli 的独立二进制文件（两者都面向 Linux 和 Apple Silicon 的 macOS，notecli 还提供 Windows 版）。应用已内置 notemaid，平时不需要它们。
 
 ## 包管理器
 

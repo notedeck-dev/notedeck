@@ -1,5 +1,5 @@
 ---
-sourceHash: 5ff74554eb20
+sourceHash: 26fc26834414
 ---
 
 # Installation
@@ -13,7 +13,7 @@ Installers for each OS are published on [GitHub Releases](https://github.com/not
 | Linux | `.deb` / `.AppImage` / `.tar.gz` (the app + notemaid + a systemd user unit) |
 | Android | `.apk` (three builds by CPU: `arm64` / `armv7` / `x86_64`. Almost every real device is `arm64`) |
 
-The same Release also carries standalone binaries of [notemaid](/en/docs/notemaid), the AI's separate process, and of the notecli CLI (for Linux and Apple Silicon macOS). The app bundles notemaid, so you normally do not need them.
+The same Release also carries standalone binaries of [notemaid](/en/docs/notemaid), the AI's separate process, and of the [notecli](/en/docs/guide/cli) CLI (both for Linux and Apple Silicon macOS; notecli also for Windows). The app bundles notemaid, so you normally do not need them.
 
 ## Package managers
 

@@ -1,8 +1,8 @@
 # notecli
 
-Misskey をヘッドレスで操作する Rust ライブラリ & CLI デーモン。
+Misskey をヘッドレスで操作する Rust ライブラリ & CLI。
 
-GUI なしで Misskey の主要機能（タイムライン取得、投稿、リアクション、ストリーミング等）を CLI または REST API 経由で利用できます。[NoteDeck](https://github.com/notedeck-dev/notedeck) の Rust バックエンドとしても利用されています。
+GUI なしで Misskey の主要機能（タイムライン取得、投稿、リアクション等）を CLI から利用できます。AI エージェントに使わせる手順を含む利用者向けの案内は[ドキュメントサイト](https://notedeck.io/docs/guide/cli)にあります。[NoteDeck](https://github.com/notedeck-dev/notedeck) の Rust バックエンドとしても利用されています。
 
 ## インストール
 
@@ -84,10 +84,7 @@ impl FrontendEmitter for MyEmitter {
 
 ## 認証
 
-起動ごとにランダムトークンを生成し `{data_dir}/api-token` に書き出します（Unix: 0600）。
-`/api` と `/api/accounts` 以外の全リクエストに `Authorization: Bearer {token}` ヘッダーが必要です。
-
-アカウントの API トークンは OS のキーチェーン（Linux: Secret Service、macOS: Keychain、Windows: Credential Manager）に保存されます。
+`notecli login <HOST>` が MiAuth で取得したアカウントの API トークンは、Cargo でビルドしたバイナリでは OS のキーチェーン（Linux: Secret Service、macOS: Keychain、Windows: Credential Manager）に保存されます（配布バイナリはローカル DB。上の「インストール」を参照）。
 Linux で Secret Service が使えない環境（サーバー / WSL2 / コンテナ）では、暗号化ファイル `{data_dir}/notecli/secrets.enc` に保存されます（鍵は `{config_dir}/notecli/secret.key`、どちらも 0600）。
 
 ## License

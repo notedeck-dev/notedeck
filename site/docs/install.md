@@ -9,7 +9,7 @@
 | Linux | `.deb` / `.AppImage` / `.tar.gz`（アプリ本体 + notemaid + systemd の user unit） |
 | Android | `.apk`（CPU ごとに `arm64` / `armv7` / `x86_64` の 3 種。実機のほとんどは `arm64`） |
 
-同じ Release に、AI の別プロセス [notemaid](/docs/notemaid) と CLI の notecli の standalone バイナリもあります（Linux と Apple Silicon の macOS 向け）。アプリには notemaid が同梱されているので、ふだんは要りません。
+同じ Release に、AI の別プロセス [notemaid](/docs/notemaid) と CLI の [notecli](/docs/guide/cli) の standalone バイナリもあります（どちらも Linux と Apple Silicon の macOS 向け。notecli は Windows 向けもあります）。アプリには notemaid が同梱されているので、ふだんは要りません。
 
 ## パッケージマネージャー
 
