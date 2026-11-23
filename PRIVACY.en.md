@@ -1,4 +1,4 @@
-<!-- sourceHash: f66974147a54 -->
+<!-- sourceHash: a81b331f936d -->
 # Privacy Policy
 
 NoteDeck is an integrated environment (IDE) for Misskey and other decentralized social networks. It runs on desktop (Windows / macOS / Linux) and Android. This document states how NoteDeck handles user data.
@@ -119,7 +119,7 @@ When you use AI chat, the messages you enter and the context you allowed through
 
 - **Per account**: account menu → Log out → "Delete everything" removes the cache, the token and related data. That account's token in the OS keychain is removed as well
 - **AI API keys and secrets of external services**: deleting a connection also removes its secret from the OS keychain
-- **Everything**: delete the settings folder and its parent, the app data folder. **Credentials in the OS keychain live outside these folders, so this alone does not remove them.** Either do the two steps above first (log out of the accounts and delete the connections), or delete the `notedeck` entries in your OS's keychain manager. If the encrypted file is in use on Linux, also delete `~/.local/share/notecli/secrets.enc` and `~/.config/notecli/secret.key`
+- **Everything**: delete the settings folder and its parent, the app data folder. **Credentials in the OS keychain live outside these folders, so this alone does not remove them.** Either do the two steps above first (log out of the accounts and delete the connections), or delete the `notedeck` entries (for the Microsoft Store version, the `notedeck-msstore` entries) in your OS's keychain manager. If the encrypted file is in use on Linux, also delete `~/.local/share/notecli/secrets.enc` and `~/.config/notecli/secret.key`
 - **Uninstalling**: follow the OS procedure for removing apps (on desktop, the settings folder is left for the user to delete separately; for the Microsoft Store version, see "Microsoft Store version (Windows)" above)
 - **Android**: uninstalling the app, or clearing the app's storage in the OS settings, removes all data on the device
 - **Data on Misskey servers**: posts and the accounts themselves are held by each Misskey server. The developers of NoteDeck do not have them and cannot delete them. Use that server's own features to delete them
