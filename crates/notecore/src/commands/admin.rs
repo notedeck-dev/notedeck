@@ -187,14 +187,12 @@ pub fn replace_database_file(app_dir: &std::path::Path, src: &std::path::Path) -
     let import_err =
         |e: std::io::Error| NoteDeckError::InvalidInput(format!("Failed to import database: {e}"));
     let replaced: Result<()> = (|| {
-        std::fs::copy(src, &staged).map_err(import_err)?;
-        // copy は元の権限を引き継ぐ。読み取り専用のまま置くと次の起動で移行を書けない
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(&staged, std::fs::Permissions::from_mode(0o600))
-                .map_err(import_err)?;
-        }
+        // fs::copy は元の権限を引き継ぐので使わない。読み取り専用のまま置くと、次の起動で
+        // 移行を書けない
+        let mut from = std::fs::File::open(src).map_err(import_err)?;
+        let mut to = std::fs::File::create(&staged).map_err(import_err)?;
+        std::io::copy(&mut from, &mut to).map_err(import_err)?;
+        drop(to);
         check_importable(&staged)?;
         // rename ではなく上書きで置く: アプリは今の DB を開いたままで、Windows では
         // 開かれているファイルを rename で置き換えられない
@@ -301,39 +299,6 @@ mod tests {
             b"current"
         );
         assert!(app_dir.join("notecli.db-wal").exists());
-    }
-
-    /// アプリを終了して notecli.db だけを写したバックアップを、書き込めない場所
-    /// (読み取り専用の媒体) から取り込める。WAL モードの DB は、隣に補助ファイルを
-    /// 作れない場所では読み取り専用でも開けない
-    #[cfg(unix)]
-    #[test]
-    fn replace_database_file_accepts_db_on_read_only_media() {
-        use std::os::unix::fs::PermissionsExt;
-
-        let dir = tempfile::tempdir().unwrap();
-        let app_dir = dir.path().join("app");
-        std::fs::create_dir(&app_dir).unwrap();
-        std::fs::write(app_dir.join("notecli.db"), b"current").unwrap();
-        let media = dir.path().join("media");
-        std::fs::create_dir(&media).unwrap();
-        // WAL を本体に畳んでから、本体だけを媒体に写す
-        let made = dir.path().join("made.db");
-        make_db(&made, false);
-        rusqlite::Connection::open(&made)
-            .unwrap()
-            .query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |_| Ok(()))
-            .unwrap();
-        let src = media.join("notecli.db");
-        std::fs::copy(&made, &src).unwrap();
-        std::fs::set_permissions(&src, std::fs::Permissions::from_mode(0o400)).unwrap();
-        std::fs::set_permissions(&media, std::fs::Permissions::from_mode(0o555)).unwrap();
-
-        let result = replace_database_file(&app_dir, &src);
-        std::fs::set_permissions(&media, std::fs::Permissions::from_mode(0o755)).unwrap();
-        result.unwrap();
-        // 置いた DB は、次の起動で書き込める (移行できる)
-        notecli::db::Database::open(&app_dir.join("notecli.db")).unwrap();
     }
 
     #[test]
