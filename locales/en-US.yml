@@ -3962,6 +3962,8 @@ _native:
     endpointDenied: "Can’t send to the AI connection’s URL ({host}): {reason}. Internal addresses and ports a browser won’t connect to can’t be AI provider destinations"
     hostNotAllowed: "The AI connection’s URL host ({host}) is not in this connection’s allowed hosts. Add it in the connection settings"
   backup:
+    dbNewer: "This database was created by a newer version of the app, so it cannot be imported. Update the app, then import it"
+    dbIncompatible: "This database cannot be opened by this version of the app, so it cannot be imported"
     skippedSame: "Skipped (same as existing): {items}"
     restoredRenamed: "Restored under another name (conflicts with existing): {items} → {renamed}"
     workspaceImportTitle: "Replace the AI's personality and memory?"

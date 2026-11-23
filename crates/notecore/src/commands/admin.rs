@@ -168,8 +168,30 @@ pub async fn snapshot_db_to(core: &Core, dest: &std::path::Path) -> Result<()> {
 
 /// `src` を検証してから notecli.db として app dir に置き、WAL / SHM を消す
 /// (再起動後に新しい DB がきれいに開く)。手元側の「DB をインポート」(選択 dialog) が呼ぶ。
+///
+/// このアプリで開けない DB (より新しい版が移行したものなど) は置き換えずに断る。
+/// 置き換えてしまうと次の起動で移行が止まり、元の DB も失われる (#1438)。
 pub fn replace_database_file(app_dir: &std::path::Path, src: &std::path::Path) -> Result<()> {
+    use notecli::db::{Database, MigrationStatus};
+
     validate_sqlite_file(src)?;
+    match Database::migration_status(src)? {
+        MigrationStatus::UpToDate { .. } | MigrationStatus::Pending { .. } => {}
+        MigrationStatus::DbNewer { .. } => {
+            return Err(crate::i18n::error(
+                "DB_IMPORT_NEWER",
+                "_native.backup.dbNewer",
+                serde_json::json!({}),
+            ));
+        }
+        MigrationStatus::Divergent { .. } => {
+            return Err(crate::i18n::error(
+                "DB_IMPORT_INCOMPATIBLE",
+                "_native.backup.dbIncompatible",
+                serde_json::json!({}),
+            ));
+        }
+    }
     std::fs::copy(src, app_dir.join("notecli.db"))
         .map_err(|e| NoteDeckError::InvalidInput(format!("Failed to import database: {e}")))?;
     let _ = std::fs::remove_file(app_dir.join("notecli.db-wal"));
@@ -199,6 +221,81 @@ pub async fn logout_account(core: &Core, id: String) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 今のバイナリで作った DB (`future` なら、より新しい版が移行した印を足す)
+    fn make_db(path: &std::path::Path, future: bool) {
+        drop(notecli::db::Database::open(path).unwrap());
+        if future {
+            rusqlite::Connection::open(path)
+                .unwrap()
+                .execute(
+                    "INSERT INTO refinery_schema_history (version, name, applied_on, checksum) \
+                     VALUES (999, 'from_the_future', '2099-01-01T00:00:00Z', '0')",
+                    [],
+                )
+                .unwrap();
+        }
+    }
+
+    #[test]
+    fn replace_database_file_accepts_db_of_this_version() {
+        let dir = tempfile::tempdir().unwrap();
+        let app_dir = dir.path().join("app");
+        std::fs::create_dir(&app_dir).unwrap();
+        std::fs::write(app_dir.join("notecli.db"), b"current").unwrap();
+        let src = dir.path().join("src.db");
+        make_db(&src, false);
+
+        replace_database_file(&app_dir, &src).unwrap();
+        assert_ne!(
+            std::fs::read(app_dir.join("notecli.db")).unwrap(),
+            b"current"
+        );
+    }
+
+    #[test]
+    fn replace_database_file_refuses_db_newer_than_this_app() {
+        let dir = tempfile::tempdir().unwrap();
+        let app_dir = dir.path().join("app");
+        std::fs::create_dir(&app_dir).unwrap();
+        std::fs::write(app_dir.join("notecli.db"), b"current").unwrap();
+        std::fs::write(app_dir.join("notecli.db-wal"), b"wal").unwrap();
+        let src = dir.path().join("src.db");
+        make_db(&src, true);
+
+        let err = replace_database_file(&app_dir, &src).unwrap_err();
+        assert_eq!(err.code(), "DB_IMPORT_NEWER");
+        // 今の DB は置き換えず、WAL も消さない
+        assert_eq!(
+            std::fs::read(app_dir.join("notecli.db")).unwrap(),
+            b"current"
+        );
+        assert!(app_dir.join("notecli.db-wal").exists());
+    }
+
+    #[test]
+    fn replace_database_file_refuses_db_this_app_cannot_open() {
+        let dir = tempfile::tempdir().unwrap();
+        let app_dir = dir.path().join("app");
+        std::fs::create_dir(&app_dir).unwrap();
+        std::fs::write(app_dir.join("notecli.db"), b"current").unwrap();
+        let src = dir.path().join("src.db");
+        make_db(&src, false);
+        rusqlite::Connection::open(&src)
+            .unwrap()
+            .execute(
+                "UPDATE refinery_schema_history SET checksum = 'tampered' WHERE version = 1",
+                [],
+            )
+            .unwrap();
+
+        let err = replace_database_file(&app_dir, &src).unwrap_err();
+        assert_eq!(err.code(), "DB_IMPORT_INCOMPATIBLE");
+        assert_eq!(
+            std::fs::read(app_dir.join("notecli.db")).unwrap(),
+            b"current"
+        );
+    }
 
     #[test]
     fn validate_sqlite_valid() {

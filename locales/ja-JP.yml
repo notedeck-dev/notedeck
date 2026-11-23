@@ -3710,6 +3710,8 @@ _native:
     endpointDenied: "AI 接続の URL ({host}) へは送れません: {reason}。内部アドレスやブラウザーが繋がないポートは AI プロバイダーの宛先に使えません"
     hostNotAllowed: "AI 接続の URL の host ({host}) が、この接続の許可ホストに入っていません。接続の設定で許可ホストに加えてください"
   backup:
+    dbNewer: "このデータベースは、今のアプリより新しい版で作られているため取り込めません。アプリを更新してから取り込んでください"
+    dbIncompatible: "このデータベースは、今のアプリでは開けないため取り込めません"
     skippedSame: "スキップ (既存と内容が同じ): {items}"
     restoredRenamed: "別名で復元 (既存と衝突): {items} → {renamed}"
     workspaceImportTitle: "AI の人格と記憶を置き換えますか？"
