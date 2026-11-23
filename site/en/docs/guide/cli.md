@@ -1,5 +1,5 @@
 ---
-sourceHash: fd66106dce14
+sourceHash: d8034bfde75b
 ---
 
 # Using from the terminal and AI agents (notecli)
@@ -147,7 +147,7 @@ notecli is a tool that uses your Misskey token directly; NoteDeck's confirmation
 Any of these helps:
 
 - **Narrow what the agent may run.** Allow only reading commands (`notecli timeline` and so on) automatically, and require confirmation every time for writes such as `notecli post`. In Claude Code you can decide this per command in the permission settings
-- **Use a dedicated account.** Create a separate account for the agent and have it use only that one with `-a`
+- **Register only a dedicated account.** Create a separate account for the agent, and log only that account in to notecli in the environment where the agent runs. `-a` merely selects an account; it does not make the others unusable. If your personal account is registered in the same environment, the agent can read its notifications and post from it just by changing `-a`
 - **Use NoteDeck's MCP.** Every write shows a confirmation on NoteDeck's screen, and each token can be limited to certain operations. It works only while NoteDeck is running → [Using AI → Using NoteDeck from an external AI agent](/en/docs/guide/ai#using-notedeck-from-an-external-ai-agent-mcp)
 
 | | notecli | NoteDeck's MCP |
