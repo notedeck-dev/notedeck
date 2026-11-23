@@ -184,15 +184,25 @@ pub fn replace_database_file(app_dir: &std::path::Path, src: &std::path::Path) -
         }
     };
     discard_staged();
-    std::fs::copy(src, &staged)
-        .map_err(|e| NoteDeckError::InvalidInput(format!("Failed to import database: {e}")))?;
-
-    let checked = check_importable(&staged).and_then(|()| {
-        std::fs::rename(&staged, app_dir.join("notecli.db"))
-            .map_err(|e| NoteDeckError::InvalidInput(format!("Failed to import database: {e}")))
-    });
+    let import_err =
+        |e: std::io::Error| NoteDeckError::InvalidInput(format!("Failed to import database: {e}"));
+    let replaced: Result<()> = (|| {
+        std::fs::copy(src, &staged).map_err(import_err)?;
+        // copy は元の権限を引き継ぐ。読み取り専用のまま置くと次の起動で移行を書けない
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&staged, std::fs::Permissions::from_mode(0o600))
+                .map_err(import_err)?;
+        }
+        check_importable(&staged)?;
+        // rename ではなく上書きで置く: アプリは今の DB を開いたままで、Windows では
+        // 開かれているファイルを rename で置き換えられない
+        std::fs::copy(&staged, app_dir.join("notecli.db")).map_err(import_err)?;
+        Ok(())
+    })();
     discard_staged();
-    checked?;
+    replaced?;
 
     let _ = std::fs::remove_file(app_dir.join("notecli.db-wal"));
     let _ = std::fs::remove_file(app_dir.join("notecli.db-shm"));
@@ -316,15 +326,14 @@ mod tests {
             .unwrap();
         let src = media.join("notecli.db");
         std::fs::copy(&made, &src).unwrap();
+        std::fs::set_permissions(&src, std::fs::Permissions::from_mode(0o400)).unwrap();
         std::fs::set_permissions(&media, std::fs::Permissions::from_mode(0o555)).unwrap();
 
         let result = replace_database_file(&app_dir, &src);
         std::fs::set_permissions(&media, std::fs::Permissions::from_mode(0o755)).unwrap();
         result.unwrap();
-        assert_ne!(
-            std::fs::read(app_dir.join("notecli.db")).unwrap(),
-            b"current"
-        );
+        // 置いた DB は、次の起動で書き込める (移行できる)
+        notecli::db::Database::open(&app_dir.join("notecli.db")).unwrap();
     }
 
     #[test]
