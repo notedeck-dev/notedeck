@@ -1,5 +1,5 @@
 ---
-sourceHash: 5ff74554eb20
+sourceHash: 2dc36b90043a
 ---
 
 # Installation
@@ -13,7 +13,7 @@ Installers for each OS are published on [GitHub Releases](https://github.com/not
 | Linux | `.deb` / `.AppImage` / `.tar.gz` (the app + notemaid + a systemd user unit) |
 | Android | `.apk` (three builds by CPU: `arm64` / `armv7` / `x86_64`. Almost every real device is `arm64`) |
 
-The same Release also carries standalone binaries of [notemaid](/en/docs/notemaid), the AI's separate process, and of the notecli CLI (for Linux and Apple Silicon macOS). The app bundles notemaid, so you normally do not need them.
+The same Release also carries standalone binaries of [notemaid](/en/docs/notemaid), the AI's separate process, and of the [notecli](/en/docs/guide/cli) CLI (both for Linux and Apple Silicon macOS; notecli also for Windows). The app bundles notemaid, so you normally do not need them.
 
 ## Package managers
 
@@ -46,7 +46,7 @@ The Windows and macOS builds are not code-signed yet, so you will see an "unknow
 - **Windows**: on the SmartScreen dialog, click "More info" → "Run anyway"
 - **macOS**: in System Settings → "Privacy & Security", choose "Open Anyway" for the blocked app (on older macOS, right-clicking the app in Finder → "Open" also works)
 
-The missing signature is a matter of cost and review, not malicious code. Releases are built by GitHub Actions from the source in the public repository, and you can verify the hashes of the `.exe` / `.dmg` / `.deb` / `.AppImage` / `.tar.gz` with `SHA256SUMS.txt`.
+The missing signature is a matter of cost and review, not malicious code. Releases are built by GitHub Actions from the source in the public repository, and you can verify the hashes of the `.exe` / `.dmg` / `.deb` / `.AppImage` / `.tar.gz` with `SHA256SUMS.txt` (the standalone notemaid / notecli binaries are not listed in `SHA256SUMS.txt`).
 
 Delivering the app without the warning requires code signing or distribution through the Microsoft Store on Windows, and notarization through the Apple Developer Program on macOS. For Windows, we applied for free open-source code signing from [SignPath Foundation](https://signpath.org/) in November 2026 and were turned down because the project is not yet visible enough. What the review looks at is [stars on GitHub](https://github.com/notedeck-dev/notedeck), forks, and independent mentions elsewhere, and we can reapply once the project is better known. If you can help, see [the section at the bottom of the download page](/en/#store-distribution). How signing is handled is described in the [Code signing policy](/en/docs/code-signing-policy).
 

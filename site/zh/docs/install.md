@@ -1,5 +1,5 @@
 ---
-sourceHash: 5ff74554eb20
+sourceHash: 2dc36b90043a
 ---
 
 # 安装
@@ -13,7 +13,7 @@ sourceHash: 5ff74554eb20
 | Linux | `.deb` / `.AppImage` / `.tar.gz`（应用本体 + notemaid + systemd user unit） |
 | Android | `.apk`（按 CPU 分为 `arm64` / `armv7` / `x86_64` 3 种。绝大多数真机是 `arm64`） |
 
-同一个 Release 中还有 AI 的独立进程 [notemaid](/zh/docs/notemaid) 和 CLI notecli 的独立二进制文件（面向 Linux 和 Apple Silicon 的 macOS）。应用已内置 notemaid，平时不需要它们。
+同一个 Release 中还有 AI 的独立进程 [notemaid](/zh/docs/notemaid) 和 CLI notecli 的独立二进制文件（两者都面向 Linux 和 Apple Silicon 的 macOS，notecli 还提供 Windows 版）。应用已内置 notemaid，平时不需要它们。
 
 ## 包管理器
 
@@ -46,7 +46,7 @@ Windows / macOS 版目前尚未进行代码签名，首次启动时会出现“�
 - **Windows**：在 SmartScreen 界面中点击“更多信息”→“仍要运行”
 - **macOS**：在系统设置 →“隐私与安全性”中，对被阻止的应用选择“仍要打开”（在较旧的 macOS 上，在访达中右键点击应用 →“打开”也可以）
 
-没有签名是成本和审核的问题，并不是因为包含恶意代码。发布的文件由 GitHub Actions 从公开仓库的源代码构建，`.exe` / `.dmg` / `.deb` / `.AppImage` / `.tar.gz` 可以用 `SHA256SUMS.txt` 校验哈希值。
+没有签名是成本和审核的问题，并不是因为包含恶意代码。发布的文件由 GitHub Actions 从公开仓库的源代码构建，`.exe` / `.dmg` / `.deb` / `.AppImage` / `.tar.gz` 可以用 `SHA256SUMS.txt` 校验哈希值（独立的 notemaid / notecli 二进制文件不包含在 `SHA256SUMS.txt` 中）。
 
 要在没有警告的情况下发布，Windows 需要代码签名或通过 Microsoft Store 分发，macOS 需要通过 Apple Developer Program 进行公证（notarization）。Windows 方面，我们已在 2026 年 11 月申请面向开源软件的免费代码签名（[SignPath Foundation](https://signpath.org/)），但因项目的知名度尚不足而未获通过。审核看的是 [GitHub 上的 Star](https://github.com/notedeck-dev/notedeck)、fork 以及外部的介绍和讨论，知名度提高后可以重新申请。如果你愿意帮忙，请查看[下载页面底部的说明](/zh/#store-distribution)。签名的方针见 [Code signing policy](/en/docs/code-signing-policy)（英文）。
 

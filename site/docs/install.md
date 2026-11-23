@@ -9,7 +9,7 @@
 | Linux | `.deb` / `.AppImage` / `.tar.gz`（アプリ本体 + notemaid + systemd の user unit） |
 | Android | `.apk`（CPU ごとに `arm64` / `armv7` / `x86_64` の 3 種。実機のほとんどは `arm64`） |
 
-同じ Release に、AI の別プロセス [notemaid](/docs/notemaid) と CLI の notecli の standalone バイナリもあります（Linux と Apple Silicon の macOS 向け）。アプリには notemaid が同梱されているので、ふだんは要りません。
+同じ Release に、AI の別プロセス [notemaid](/docs/notemaid) と CLI の [notecli](/docs/guide/cli) の standalone バイナリもあります（どちらも Linux と Apple Silicon の macOS 向け。notecli は Windows 向けもあります）。アプリには notemaid が同梱されているので、ふだんは要りません。
 
 ## パッケージマネージャー
 
@@ -42,7 +42,7 @@ Windows / macOS 版はまだコード署名なしで配布しているため、�
 - **Windows**: SmartScreen の画面で「詳細情報」→「実行」
 - **macOS**: システム設定 →「プライバシーとセキュリティ」で、ブロックされたアプリを「このまま開く」（古い macOS では Finder でアプリを右クリック →「開く」でも通ります）
 
-署名がないのはコストと審査の問題で、悪意のあるコードが入っているわけではありません。配布物は GitHub Actions が公開リポジトリのソースからビルドしており、`.exe` / `.dmg` / `.deb` / `.AppImage` / `.tar.gz` は `SHA256SUMS.txt` でハッシュを検証できます。
+署名がないのはコストと審査の問題で、悪意のあるコードが入っているわけではありません。配布物は GitHub Actions が公開リポジトリのソースからビルドしており、`.exe` / `.dmg` / `.deb` / `.AppImage` / `.tar.gz` は `SHA256SUMS.txt` でハッシュを検証できます（standalone の notemaid / notecli は `SHA256SUMS.txt` に含まれません）。
 
 警告を出さずに届けるには、Windows はコード署名か Microsoft Store 経由の配布、macOS は Apple Developer Program での公証（notarization）が必要です。Windows は OSS 向け無料コード署名（[SignPath Foundation](https://signpath.org/)）に 2026 年 11 月に申請しましたが、プロジェクトの認知度がまだ足りないとして見送りになりました。審査で見られるのは [GitHub の Star](https://github.com/notedeck-dev/notedeck) や fork、外部での紹介や言及で、認知が広がれば再申請できます。協力できる方は[ダウンロードページ下部の案内](/#store-distribution)を見てください。署名の方針は [Code signing policy](/docs/code-signing-policy) にまとめています。
 
