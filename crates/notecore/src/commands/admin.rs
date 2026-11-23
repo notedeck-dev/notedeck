@@ -172,31 +172,60 @@ pub async fn snapshot_db_to(core: &Core, dest: &std::path::Path) -> Result<()> {
 /// このアプリで開けない DB (より新しい版が移行したものなど) は置き換えずに断る。
 /// 置き換えてしまうと次の起動で移行が止まり、元の DB も失われる (#1438)。
 pub fn replace_database_file(app_dir: &std::path::Path, src: &std::path::Path) -> Result<()> {
-    use notecli::db::{Database, MigrationStatus};
-
     validate_sqlite_file(src)?;
-    match Database::migration_status(src)? {
-        MigrationStatus::UpToDate { .. } | MigrationStatus::Pending { .. } => {}
-        MigrationStatus::DbNewer { .. } => {
-            return Err(crate::i18n::error(
-                "DB_IMPORT_NEWER",
-                "_native.backup.dbNewer",
-                serde_json::json!({}),
-            ));
+
+    // 選ばれたファイルを直接は開かず、app dir に写してから確かめる。WAL モードの DB は
+    // 隣に補助ファイルを作れない場所 (読み取り専用の媒体) では読み取り専用でも開けず、
+    // 開ける場所ではバックアップの隣に補助ファイルを残しうる
+    let staged = app_dir.join("notecli.db.import");
+    let discard_staged = || {
+        for suffix in ["", "-wal", "-shm"] {
+            let _ = std::fs::remove_file(app_dir.join(format!("notecli.db.import{suffix}")));
         }
-        MigrationStatus::Divergent { .. } => {
-            return Err(crate::i18n::error(
-                "DB_IMPORT_INCOMPATIBLE",
-                "_native.backup.dbIncompatible",
-                serde_json::json!({}),
-            ));
+    };
+    discard_staged();
+    let import_err =
+        |e: std::io::Error| NoteDeckError::InvalidInput(format!("Failed to import database: {e}"));
+    let replaced: Result<()> = (|| {
+        std::fs::copy(src, &staged).map_err(import_err)?;
+        // copy は元の権限を引き継ぐ。読み取り専用のまま置くと次の起動で移行を書けない
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&staged, std::fs::Permissions::from_mode(0o600))
+                .map_err(import_err)?;
         }
-    }
-    std::fs::copy(src, app_dir.join("notecli.db"))
-        .map_err(|e| NoteDeckError::InvalidInput(format!("Failed to import database: {e}")))?;
+        check_importable(&staged)?;
+        // rename ではなく上書きで置く: アプリは今の DB を開いたままで、Windows では
+        // 開かれているファイルを rename で置き換えられない
+        std::fs::copy(&staged, app_dir.join("notecli.db")).map_err(import_err)?;
+        Ok(())
+    })();
+    discard_staged();
+    replaced?;
+
     let _ = std::fs::remove_file(app_dir.join("notecli.db-wal"));
     let _ = std::fs::remove_file(app_dir.join("notecli.db-shm"));
     Ok(())
+}
+
+/// このアプリが次の起動で開ける DB か (移行の履歴で判定する)
+fn check_importable(path: &std::path::Path) -> Result<()> {
+    use notecli::db::{Database, MigrationStatus};
+
+    match Database::migration_status(path)? {
+        MigrationStatus::UpToDate { .. } | MigrationStatus::Pending { .. } => Ok(()),
+        MigrationStatus::DbNewer { .. } => Err(crate::i18n::error(
+            "DB_IMPORT_NEWER",
+            "_native.backup.dbNewer",
+            serde_json::json!({}),
+        )),
+        MigrationStatus::Divergent { .. } => Err(crate::i18n::error(
+            "DB_IMPORT_INCOMPATIBLE",
+            "_native.backup.dbIncompatible",
+            serde_json::json!({}),
+        )),
+    }
 }
 
 /// アカウントを削除する (資格情報の失効を含む認可境界、表の種別 authz)
@@ -265,12 +294,46 @@ mod tests {
 
         let err = replace_database_file(&app_dir, &src).unwrap_err();
         assert_eq!(err.code(), "DB_IMPORT_NEWER");
+        assert!(!app_dir.join("notecli.db.import").exists());
         // 今の DB は置き換えず、WAL も消さない
         assert_eq!(
             std::fs::read(app_dir.join("notecli.db")).unwrap(),
             b"current"
         );
         assert!(app_dir.join("notecli.db-wal").exists());
+    }
+
+    /// アプリを終了して notecli.db だけを写したバックアップを、書き込めない場所
+    /// (読み取り専用の媒体) から取り込める。WAL モードの DB は、隣に補助ファイルを
+    /// 作れない場所では読み取り専用でも開けない
+    #[cfg(unix)]
+    #[test]
+    fn replace_database_file_accepts_db_on_read_only_media() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let app_dir = dir.path().join("app");
+        std::fs::create_dir(&app_dir).unwrap();
+        std::fs::write(app_dir.join("notecli.db"), b"current").unwrap();
+        let media = dir.path().join("media");
+        std::fs::create_dir(&media).unwrap();
+        // WAL を本体に畳んでから、本体だけを媒体に写す
+        let made = dir.path().join("made.db");
+        make_db(&made, false);
+        rusqlite::Connection::open(&made)
+            .unwrap()
+            .query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |_| Ok(()))
+            .unwrap();
+        let src = media.join("notecli.db");
+        std::fs::copy(&made, &src).unwrap();
+        std::fs::set_permissions(&src, std::fs::Permissions::from_mode(0o400)).unwrap();
+        std::fs::set_permissions(&media, std::fs::Permissions::from_mode(0o555)).unwrap();
+
+        let result = replace_database_file(&app_dir, &src);
+        std::fs::set_permissions(&media, std::fs::Permissions::from_mode(0o755)).unwrap();
+        result.unwrap();
+        // 置いた DB は、次の起動で書き込める (移行できる)
+        notecli::db::Database::open(&app_dir.join("notecli.db")).unwrap();
     }
 
     #[test]
