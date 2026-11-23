@@ -2017,6 +2017,8 @@
   "_native.ai.roundLimit": "4a65cc73a623",
   "_native.ai.serverError": "0452ca2717fb",
   "_native.apiTokens.nameRequired": "43d7d91c0757",
+  "_native.backup.dbIncompatible": "0bee4b43330a",
+  "_native.backup.dbNewer": "e8fa51e959e6",
   "_native.backup.restoredRenamed": "86c96cf76454",
   "_native.backup.skippedBadFilename": "eaee2840c63a",
   "_native.backup.skippedBadKey": "695dad4fada1",

@@ -2,7 +2,7 @@
 <!-- Microsoft Store 版 (MSIX) のマニフェストの雛形 (#849)。scripts/build-msix.ps1 が版を埋めて包む。
 
      Identity の Name と Publisher、PublisherDisplayName は Partner Center が発行する値
-     (製品の「製品 ID」の画面に出る公開値) で、一致しないと提出できない。発行されるまでは仮の値。
+     (製品の「製品 ID」の画面に出る公開値) で、一致しないと提出できない。
 
      full trust の Win32 アプリ (runFullTrust)。ファイルの振り替え (仮想化) は外さない:
      データの場所はアプリが専用の場所を明示する (src-tauri/src/packaged.rs)。
@@ -12,10 +12,10 @@
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
   IgnorableNamespaces="uap rescap">
-  <Identity Name="NotedeckDev.NoteDeck" Publisher="CN=00000000-0000-0000-0000-000000000000" Version="__VERSION__.0" ProcessorArchitecture="x64" />
+  <Identity Name="hitalin.NoteDeck" Publisher="CN=6CF5A86D-9EB2-4B73-93CB-A030B2DA9267" Version="__VERSION__.0" ProcessorArchitecture="x64" />
   <Properties>
     <DisplayName>NoteDeck</DisplayName>
-    <PublisherDisplayName>NoteDeck</PublisherDisplayName>
+    <PublisherDisplayName>hitalin</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
   <Dependencies>
