@@ -55,7 +55,7 @@ Start-Sleep 25
 # --- 併用: 直接配布版が動いている間に Store 版を開く。単一起動の名前が同じなので Store 版は
 #     起動せず、直接配布版が「もう一方の版が開かれた」と気づいて利用者に知らせる
 Add-AppxPackage -Path $Msix
-$pkg = Get-AppxPackage | Where-Object { $_.Name -like 'NotedeckDev.NoteDeck*' } | Select-Object -First 1
+$pkg = Get-AppxPackage | Where-Object { $_.Name -like 'hitalin.NoteDeck*' } | Select-Object -First 1
 if (-not $pkg) { throw 'the package was not installed' }
 $pfn = $pkg.PackageFamilyName
 $beforeStore = (Read-Logs $directLogDir).Length
