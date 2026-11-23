@@ -106,7 +106,7 @@ notecli timeline -c | fzf --with-nth=2.. | cut -f1 | xargs -I{} notecli react {}
 notecli timeline --jsonl | jq -r 'select(.user.username == "taka") | .id'
 ```
 
-失敗したときは終了コードが 0 以外になります。`--json` / `--jsonl` のときは、エラーも `{"error": "...", "message": "..."}` の形で標準エラー出力に出ます。
+失敗したときは終了コードが 0 以外になります。`--json` / `--jsonl` のときは、エラーも `{"error": "...", "message": "..."}` の形で標準エラー出力に出ます。`doctor` だけは別で、診断結果を標準出力に出し、失敗した項目があれば終了コード 1 を返します（標準エラー出力には何も出しません）。
 
 ## AI エージェントに使わせる
 

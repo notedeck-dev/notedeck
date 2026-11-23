@@ -1,5 +1,5 @@
 ---
-sourceHash: d8034bfde75b
+sourceHash: 9afa90820193
 ---
 
 # Using from the terminal and AI agents (notecli)
@@ -110,7 +110,7 @@ notecli timeline -c | fzf --with-nth=2.. | cut -f1 | xargs -I{} notecli react {}
 notecli timeline --jsonl | jq -r 'select(.user.username == "taka") | .id'
 ```
 
-On failure the exit code is non-zero. With `--json` / `--jsonl`, the error is also printed to standard error as `{"error": "...", "message": "..."}`.
+On failure the exit code is non-zero. With `--json` / `--jsonl`, the error is also printed to standard error as `{"error": "...", "message": "..."}`. `doctor` is the exception: it prints its report to standard output and returns exit code 1 if any check failed (nothing goes to standard error).
 
 ## Letting an AI agent use it
 
