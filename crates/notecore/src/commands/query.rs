@@ -93,6 +93,32 @@ pub(crate) async fn reattach_lost_subscriptions(
     }
 }
 
+/// 照会を開く。張り直し / 状態変更 / 閉じる と同じ錠で直列にし、錠は呼び出し側が購読を
+/// 張り終えるまで持つ (#1430)。既に購読を持つ照会なら、止まっていた購読を再開する:
+/// `open` は状態を Live に戻すが、購読は隠れたカラムが止めたままになっている。表から
+/// 消えた購読 (切断で失った) は触らない: 接続のたびの張り直しが扱う
+async fn open_query(
+    streaming: &notecli::streaming::StreamingManager,
+    runtime: &crate::query_runtime::QueryRuntime,
+    account_id: &str,
+    key: QueryKey,
+    owner: Option<&str>,
+) -> Result<(tokio::sync::MutexGuard<'static, ()>, QuerySnapshot)> {
+    let sync = SUBSCRIPTION_SYNC.lock().await;
+    let opened = runtime.open(key, owner)?;
+    if let Some(subscription_id) = &opened.source_subscription_id {
+        if streaming.has_subscription(subscription_id).await {
+            if let Err(e) = streaming
+                .resume_subscription(account_id, subscription_id)
+                .await
+            {
+                tracing::warn!(account_id, "[query] cannot resume on open: {e}");
+            }
+        }
+    }
+    Ok((sync, opened))
+}
+
 pub async fn query_subscribe_timeline(
     core: &Core,
     owner: Option<String>,
@@ -124,7 +150,8 @@ pub async fn query_subscribe_timeline(
         account_id: account_id.clone(),
         key: tl_key.as_canonical(),
     };
-    let opened = runtime.open(key, owner.as_deref())?;
+    let (_sync, opened) =
+        open_query(streaming, runtime, &account_id, key, owner.as_deref()).await?;
     if opened.source_subscription_id.is_some() || !online {
         return Ok(opened);
     }
@@ -147,13 +174,17 @@ pub async fn query_subscribe_antenna(
     let tl_key = TimelineKey::Antenna {
         antenna_id: antenna_id.clone(),
     };
-    let opened = runtime.open(
+    let (_sync, opened) = open_query(
+        streaming,
+        runtime,
+        &account_id,
         QueryKey::Timeline {
             account_id: account_id.clone(),
             key: tl_key.as_canonical(),
         },
         owner.as_deref(),
-    )?;
+    )
+    .await?;
     if opened.source_subscription_id.is_some() || !online {
         return Ok(opened);
     }
@@ -176,13 +207,17 @@ pub async fn query_subscribe_channel(
     let tl_key = TimelineKey::Channel {
         channel_id: channel_id.clone(),
     };
-    let opened = runtime.open(
+    let (_sync, opened) = open_query(
+        streaming,
+        runtime,
+        &account_id,
         QueryKey::Timeline {
             account_id: account_id.clone(),
             key: tl_key.as_canonical(),
         },
         owner.as_deref(),
-    )?;
+    )
+    .await?;
     if opened.source_subscription_id.is_some() || !online {
         return Ok(opened);
     }
@@ -205,13 +240,17 @@ pub async fn query_subscribe_role(
     let tl_key = TimelineKey::Role {
         role_id: role_id.clone(),
     };
-    let opened = runtime.open(
+    let (_sync, opened) = open_query(
+        streaming,
+        runtime,
+        &account_id,
         QueryKey::Timeline {
             account_id: account_id.clone(),
             key: tl_key.as_canonical(),
         },
         owner.as_deref(),
-    )?;
+    )
+    .await?;
     if opened.source_subscription_id.is_some() || !online {
         return Ok(opened);
     }
@@ -232,13 +271,17 @@ pub async fn query_subscribe_mentions(
 
     // mentions は QueryKey 識別子としてのみ Timeline に折り畳む。
     // 購読は従来どおり main チャンネル経由 (ws_channel を持たない種別)。
-    let opened = runtime.open(
+    let (_sync, opened) = open_query(
+        streaming,
+        runtime,
+        &account_id,
         QueryKey::Timeline {
             account_id: account_id.clone(),
             key: TimelineKey::Mentions.as_canonical(),
         },
         owner.as_deref(),
-    )?;
+    )
+    .await?;
     if opened.source_subscription_id.is_some() || !online {
         return Ok(opened);
     }
@@ -259,12 +302,16 @@ pub async fn query_subscribe_notifications(
     let (host, token) = core.credentials(&account_id)?;
     let online = connect_unless_offline(streaming, &account_id, &host, &token).await?;
 
-    let opened = runtime.open(
+    let (_sync, opened) = open_query(
+        streaming,
+        runtime,
+        &account_id,
         QueryKey::Notifications {
             account_id: account_id.clone(),
         },
         owner.as_deref(),
-    )?;
+    )
+    .await?;
     if opened.source_subscription_id.is_some() || !online {
         return Ok(opened);
     }
@@ -286,13 +333,17 @@ pub async fn query_subscribe_chat_user(
     let (host, token) = core.credentials(&account_id)?;
     let online = connect_unless_offline(streaming, &account_id, &host, &token).await?;
 
-    let opened = runtime.open(
+    let (_sync, opened) = open_query(
+        streaming,
+        runtime,
+        &account_id,
         QueryKey::ChatUser {
             account_id: account_id.clone(),
             other_id: other_id.clone(),
         },
         owner.as_deref(),
-    )?;
+    )
+    .await?;
     if opened.source_subscription_id.is_some() || !online {
         return Ok(opened);
     }
@@ -314,13 +365,17 @@ pub async fn query_subscribe_chat_room(
     let (host, token) = core.credentials(&account_id)?;
     let online = connect_unless_offline(streaming, &account_id, &host, &token).await?;
 
-    let opened = runtime.open(
+    let (_sync, opened) = open_query(
+        streaming,
+        runtime,
+        &account_id,
         QueryKey::ChatRoom {
             account_id: account_id.clone(),
             room_id: room_id.clone(),
         },
         owner.as_deref(),
-    )?;
+    )
+    .await?;
     if opened.source_subscription_id.is_some() || !online {
         return Ok(opened);
     }
@@ -430,4 +485,109 @@ pub async fn query_get_read_model_snapshot(
 ) -> Result<Option<QueryReadModelSnapshot>> {
     let runtime = core.query_runtime()?;
     runtime.read_model_snapshot(&query_id, limit)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    use notecli::streaming::StreamingManager;
+
+    use crate::query_runtime::QueryRuntime;
+
+    const ACCOUNT: &str = "acc-1";
+
+    fn home_key() -> QueryKey {
+        QueryKey::Timeline {
+            account_id: ACCOUNT.to_string(),
+            key: TimelineKey::parse("home").unwrap().as_canonical(),
+        }
+    }
+
+    /// 繋がらない接続 (127.0.0.1:1 は即 connection refused) を持つ管理役と、home を
+    /// 開いて購読を張ったあと隠れた (Suspended) 照会
+    async fn suspended_home() -> (tempfile::TempDir, StreamingManager, QueryRuntime, String) {
+        let dir = tempfile::tempdir().unwrap();
+        let db = Arc::new(notecli::db::Database::open(&dir.path().join("test.db")).unwrap());
+        let streaming = StreamingManager::new(
+            Arc::new(notecli::streaming::NoopEmitter),
+            Arc::new(notecli::event_bus::EventBus::new()),
+            db,
+            Arc::new(notecli::egress::AllowAll),
+        );
+        streaming
+            .connect(ACCOUNT, "127.0.0.1:1", "token")
+            .await
+            .unwrap();
+        let runtime = QueryRuntime::default();
+
+        let (sync, opened) = open_query(&streaming, &runtime, ACCOUNT, home_key(), Some("win-a"))
+            .await
+            .unwrap();
+        let subscription_id = streaming
+            .subscribe_notes(ACCOUNT, TimelineKey::parse("home").unwrap(), None)
+            .await
+            .unwrap();
+        runtime
+            .attach_stream_subscription(&opened.query_id, subscription_id.clone())
+            .unwrap();
+        drop(sync);
+
+        runtime
+            .set_runtime_state(&opened.query_id, QueryRuntimeState::Suspended)
+            .unwrap();
+        streaming
+            .suspend_subscription(ACCOUNT, &subscription_id)
+            .await
+            .unwrap();
+        (dir, streaming, runtime, subscription_id)
+    }
+
+    /// 止まっている照会を別の窓が開くと、状態は Live に戻る。購読も再開する (#1430)
+    #[tokio::test]
+    async fn opening_a_suspended_query_resumes_its_subscription() {
+        let (_dir, streaming, runtime, subscription_id) = suspended_home().await;
+
+        let (_sync, opened) = open_query(&streaming, &runtime, ACCOUNT, home_key(), Some("win-b"))
+            .await
+            .unwrap();
+
+        assert_eq!(opened.runtime_state, QueryRuntimeState::Live);
+        assert_eq!(opened.source_subscription_id, Some(subscription_id.clone()));
+        assert!(streaming.is_subscription_active(&subscription_id).await);
+
+        drop(_sync);
+        streaming.disconnect(ACCOUNT).await;
+    }
+
+    /// 張り直し / 状態変更 / 閉じる が進んでいる間は、照会を開く処理は待つ (#1430)。
+    /// 待たないと、列挙時の状態 (止まっている) で購読を止められ、Live なのに届かなくなる
+    #[tokio::test]
+    async fn opening_a_query_waits_for_the_subscription_sync() {
+        let (_dir, streaming, runtime, subscription_id) = suspended_home().await;
+
+        let sync = SUBSCRIPTION_SYNC.lock().await;
+        let opening = open_query(&streaming, &runtime, ACCOUNT, home_key(), Some("win-b"));
+        tokio::pin!(opening);
+        tokio::select! {
+            _ = &mut opening => panic!("直列の錠を持たれている間に、照会を開いた"),
+            _ = tokio::time::sleep(Duration::from_millis(200)) => {}
+        }
+        let (_, _, _, state) = runtime
+            .stream_subscriptions_of(ACCOUNT)
+            .unwrap()
+            .pop()
+            .unwrap();
+        assert_eq!(state, QueryRuntimeState::Suspended);
+
+        drop(sync);
+        let (_sync, opened) = opening.await.unwrap();
+        assert_eq!(opened.runtime_state, QueryRuntimeState::Live);
+        assert!(streaming.is_subscription_active(&subscription_id).await);
+
+        drop(_sync);
+        streaming.disconnect(ACCOUNT).await;
+    }
 }
