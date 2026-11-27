@@ -1,12 +1,15 @@
 package com.notedeck.desktop
 
 import android.Manifest
+import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.os.Build
 import android.os.Bundle
+import android.os.Process
 import android.view.ViewGroup
 import android.webkit.WebView
 import androidx.activity.enableEdgeToEdge
@@ -35,9 +38,21 @@ class MainActivity : TauriActivity() {
         "if(!getComputedStyle(r).getPropertyValue('--nd-bg').trim())return '';" +
         "var d=document.createElement('div');d.style.color='var(--nd-bg)';r.appendChild(d);" +
         "var c=getComputedStyle(d).color;d.remove();return c})()"
+
+    // このプロセスで Activity を作ったことがあるか (#1432)。プロセスごとに false から始まる
+    private var createdInThisProcess = false
   }
 
   override fun onCreate(savedInstanceState: Bundle?) {
+    // 同じプロセスで Activity だけが作り直された (#1432)。tao は onCreate のたびに Rust の
+    // 入口 (run) を呼ぶが、Rust 側はプロセスに 1 回しか立ち上げられず、2 回目は runtime の
+    // 二重登録で abort する。Rust に入る前 (super.onCreate の前) にプロセスごと起動し直す。
+    // configChanges (マニフェスト) で防げない作り直しの受け皿
+    if (createdInThisProcess) {
+      startActivity(Intent.makeRestartActivityTask(ComponentName(this, MainActivity::class.java)))
+      Process.killProcess(Process.myPid())
+    }
+    createdInThisProcess = true
     enableEdgeToEdge()
     // 起動時の明滅を防ぐ (#1433)。ウィンドウと WebView (onWebViewCreate) を、最初の描画が
     // 出る前から前回のテーマの背景色で塗っておく。指定しないと OS の配色と WebView の
