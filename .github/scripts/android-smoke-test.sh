@@ -79,3 +79,21 @@ if [ -z "$PID" ]; then
 fi
 
 echo "アプリは ${SURVIVE_SECONDS} 秒間生存した (pid $PID)"
+
+# 同じプロセスのまま Activity が作り直されても落ちない (#1432)。Rust 側はプロセスに
+# 1 回しか立ち上げられないので、作り直しが来たらアプリがプロセスごと起動し直す。
+# 作り直しは overlay の切り替えで起こす: API 35 以下では assetsPaths をマニフェストの
+# configChanges で受けられないので、Android が Activity を作り直す
+adb logcat -c
+adb shell cmd overlay enable-exclusive --category com.android.internal.systemui.navbar.gestural
+sleep 15
+adb logcat -d > /tmp/logcat-recreate.txt || true
+NEW_PID=$(pid_of_app)
+echo "作り直しの前後の pid: $PID -> ${NEW_PID:-なし}"
+grep -iE 'com\.notedeck.*(relaunch|Config changes)|Start proc.*com\.notedeck' /tmp/logcat-recreate.txt | tail -20 || true
+if [ -z "$NEW_PID" ] || grep -qE 'runtime already initialized|Fatal signal.*notedeck' /tmp/logcat-recreate.txt; then
+  echo "::error::Activity の作り直しでアプリが落ちた (#1432)"
+  grep -iE 'notedeck|com\.notedeck|F DEBUG|AndroidRuntime|panicked|RustStdoutStderr|Fatal signal|Config changes|relaunch' /tmp/logcat-recreate.txt | tail -150 || true
+  exit 1
+fi
+echo "Activity の作り直しのあともアプリは動いている (pid $NEW_PID)"
