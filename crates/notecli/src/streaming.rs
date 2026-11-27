@@ -636,7 +636,9 @@ impl StreamingManager {
     }
 
     pub async fn disconnect(&self, account_id: &str) {
-        // Stop WebSocket connection if any
+        // 接続の表は、購読を消し終えるまで放さない。途中で放すと、その間に終わった
+        // `connect` の側が「購読は生きている」と見て張り直さず、あとからここが消す
+        // (#1430)。順序は 接続 → polling → 購読 → capture で、逆順に持つ経路は無い
         let mut conns = self.connections.lock().await;
         if let Some(handle) = conns.remove(account_id) {
             if let Err(e) = handle.cmd_tx.send(WsCommand::Shutdown) {
@@ -646,7 +648,6 @@ impl StreamingManager {
                 tracing::error!(account_id, error = %e, "task join error");
             }
         }
-        drop(conns);
 
         // Stop polling task if any
         let mut polls = self.poll_connections.lock().await;
@@ -665,6 +666,7 @@ impl StreamingManager {
         let mut captured = self.captured_notes.write().await;
         captured.remove(account_id);
         drop(captured);
+        drop(conns);
 
         self.emitter
             .emit(StreamEvent::Status(Box::new(StreamStatusEvent {
@@ -959,6 +961,15 @@ impl StreamingManager {
             .read()
             .await
             .contains_key(subscription_id)
+    }
+
+    /// 購読が上流に張られているか。止めている (`suspend_subscription`) か、表に無ければ false
+    pub async fn is_subscription_active(&self, subscription_id: &str) -> bool {
+        self.subscriptions
+            .read()
+            .await
+            .get(subscription_id)
+            .is_some_and(|info| info.active)
     }
 
     pub async fn unsubscribe(
@@ -3134,6 +3145,43 @@ mod tests {
         assert!(drain_status(&mut rx).contains(&StreamConnectionState::Disconnected));
 
         manager.disconnect("acc-2").await;
+    }
+
+    /// 切断が購読を消し終える前に接続が進むと、接続した側は「購読は生きている」と見て
+    /// 張り直さず、そのあとで切断が購読を消す (#1430)
+    #[tokio::test]
+    async fn connect_waits_until_disconnect_has_cleared_subscriptions() {
+        let (_dir, manager, _rx) = manager_with_dead_connection(&["acc-1"]).await;
+        let manager = Arc::new(manager);
+        manager
+            .subscribe_notes("acc-1", TimelineKey::parse("home").unwrap(), None)
+            .await
+            .unwrap();
+
+        // 購読の表を読んだままにして、切断を「購読を消す直前」で止める
+        let reading = manager.subscriptions.clone().read_owned().await;
+        let disconnecting = tokio::spawn({
+            let manager = manager.clone();
+            async move { manager.disconnect("acc-1").await }
+        });
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        let connecting = tokio::spawn({
+            let manager = manager.clone();
+            async move { manager.connect("acc-1", "127.0.0.1:1", "token").await }
+        });
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        assert!(
+            !connecting.is_finished(),
+            "切断が購読を消し終えるまで、接続は終わらない"
+        );
+
+        drop(reading);
+        disconnecting.await.unwrap();
+        connecting.await.unwrap().unwrap();
+        assert!(manager.subscriptions.read().await.is_empty());
+        assert!(manager.connections.lock().await.contains_key("acc-1"));
+
+        manager.disconnect("acc-1").await;
     }
 
     #[tokio::test]
