@@ -48,7 +48,15 @@ pub(crate) async fn reattach_lost_subscriptions(
 ) {
     // 復帰の信号でカラムの数だけ同時に呼ばれる
     let _sync = SUBSCRIPTION_SYNC.lock().await;
+    reattach_lost_subscriptions_locked(streaming, runtime, account_id).await;
+}
 
+/// `reattach_lost_subscriptions` の本体。`SUBSCRIPTION_SYNC` を持っている側から呼ぶ
+async fn reattach_lost_subscriptions_locked(
+    streaming: &notecli::streaming::StreamingManager,
+    runtime: &crate::query_runtime::QueryRuntime,
+    account_id: &str,
+) {
     let Ok(queries) = runtime.stream_subscriptions_of(account_id) else {
         return;
     };
@@ -94,18 +102,21 @@ pub(crate) async fn reattach_lost_subscriptions(
 }
 
 /// 照会を開く。張り直し / 状態変更 / 閉じる と同じ錠で直列にし、錠は呼び出し側が購読を
-/// 張り終えるまで持つ (#1430)。既に購読を持つ照会なら、止まっていた購読を再開する:
-/// `open` は状態を Live に戻すが、購読は隠れたカラムが止めたままになっている。表から
-/// 消えた購読 (切断で失った) は触らない: 接続のたびの張り直しが扱う
+/// 張り終えるまで持つ (#1430)。既に購読を持つ照会なら、その購読を使える状態に戻す:
+/// - 止まっている (隠れたカラムが止めた): 再開する。`open` は状態を Live に戻すので
+/// - 表から消えている (切断で失った): 口座の分をまとめて張り直す。接続したのがこの
+///   呼び出し (`connect_unless_offline`) だと、`stream_connect` 側の張り直しは走っていない。
+///   繋がっていない (`online` が偽) ときは何もしない: 次の接続が張り直す
 async fn open_query(
     streaming: &notecli::streaming::StreamingManager,
     runtime: &crate::query_runtime::QueryRuntime,
     account_id: &str,
     key: QueryKey,
     owner: Option<&str>,
+    online: bool,
 ) -> Result<(tokio::sync::MutexGuard<'static, ()>, QuerySnapshot)> {
     let sync = SUBSCRIPTION_SYNC.lock().await;
-    let opened = runtime.open(key, owner)?;
+    let mut opened = runtime.open(key, owner)?;
     if let Some(subscription_id) = &opened.source_subscription_id {
         if streaming.has_subscription(subscription_id).await {
             if let Err(e) = streaming
@@ -113,6 +124,12 @@ async fn open_query(
                 .await
             {
                 tracing::warn!(account_id, "[query] cannot resume on open: {e}");
+            }
+        } else if online {
+            reattach_lost_subscriptions_locked(streaming, runtime, account_id).await;
+            // 通知とメンションは、張り直すと main の id に変わる
+            if let Some(restored) = runtime.snapshot(&opened.query_id)? {
+                opened = restored;
             }
         }
     }
@@ -150,8 +167,15 @@ pub async fn query_subscribe_timeline(
         account_id: account_id.clone(),
         key: tl_key.as_canonical(),
     };
-    let (_sync, opened) =
-        open_query(streaming, runtime, &account_id, key, owner.as_deref()).await?;
+    let (_sync, opened) = open_query(
+        streaming,
+        runtime,
+        &account_id,
+        key,
+        owner.as_deref(),
+        online,
+    )
+    .await?;
     if opened.source_subscription_id.is_some() || !online {
         return Ok(opened);
     }
@@ -183,6 +207,7 @@ pub async fn query_subscribe_antenna(
             key: tl_key.as_canonical(),
         },
         owner.as_deref(),
+        online,
     )
     .await?;
     if opened.source_subscription_id.is_some() || !online {
@@ -216,6 +241,7 @@ pub async fn query_subscribe_channel(
             key: tl_key.as_canonical(),
         },
         owner.as_deref(),
+        online,
     )
     .await?;
     if opened.source_subscription_id.is_some() || !online {
@@ -249,6 +275,7 @@ pub async fn query_subscribe_role(
             key: tl_key.as_canonical(),
         },
         owner.as_deref(),
+        online,
     )
     .await?;
     if opened.source_subscription_id.is_some() || !online {
@@ -280,6 +307,7 @@ pub async fn query_subscribe_mentions(
             key: TimelineKey::Mentions.as_canonical(),
         },
         owner.as_deref(),
+        online,
     )
     .await?;
     if opened.source_subscription_id.is_some() || !online {
@@ -310,6 +338,7 @@ pub async fn query_subscribe_notifications(
             account_id: account_id.clone(),
         },
         owner.as_deref(),
+        online,
     )
     .await?;
     if opened.source_subscription_id.is_some() || !online {
@@ -342,6 +371,7 @@ pub async fn query_subscribe_chat_user(
             other_id: other_id.clone(),
         },
         owner.as_deref(),
+        online,
     )
     .await?;
     if opened.source_subscription_id.is_some() || !online {
@@ -374,6 +404,7 @@ pub async fn query_subscribe_chat_room(
             room_id: room_id.clone(),
         },
         owner.as_deref(),
+        online,
     )
     .await?;
     if opened.source_subscription_id.is_some() || !online {
@@ -523,9 +554,16 @@ mod tests {
             .unwrap();
         let runtime = QueryRuntime::default();
 
-        let (sync, opened) = open_query(&streaming, &runtime, ACCOUNT, home_key(), Some("win-a"))
-            .await
-            .unwrap();
+        let (sync, opened) = open_query(
+            &streaming,
+            &runtime,
+            ACCOUNT,
+            home_key(),
+            Some("win-a"),
+            true,
+        )
+        .await
+        .unwrap();
         let subscription_id = streaming
             .subscribe_notes(ACCOUNT, TimelineKey::parse("home").unwrap(), None)
             .await
@@ -550,11 +588,48 @@ mod tests {
     async fn opening_a_suspended_query_resumes_its_subscription() {
         let (_dir, streaming, runtime, subscription_id) = suspended_home().await;
 
-        let (_sync, opened) = open_query(&streaming, &runtime, ACCOUNT, home_key(), Some("win-b"))
+        let (_sync, opened) = open_query(
+            &streaming,
+            &runtime,
+            ACCOUNT,
+            home_key(),
+            Some("win-b"),
+            true,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(opened.runtime_state, QueryRuntimeState::Live);
+        assert_eq!(opened.source_subscription_id, Some(subscription_id.clone()));
+        assert!(streaming.is_subscription_active(&subscription_id).await);
+
+        drop(_sync);
+        streaming.disconnect(ACCOUNT).await;
+    }
+
+    /// 切断は口座の購読を消すが、照会は購読の id を握ったまま残る。照会を開く側が接続した
+    /// ときも、消えた購読を張り直す: 張り直しを呼ぶ `stream_connect` を待たない
+    #[tokio::test]
+    async fn opening_a_query_restores_subscriptions_lost_by_disconnect() {
+        let (_dir, streaming, runtime, subscription_id) = suspended_home().await;
+        streaming.disconnect(ACCOUNT).await;
+        assert!(!streaming.has_subscription(&subscription_id).await);
+        streaming
+            .connect(ACCOUNT, "127.0.0.1:1", "token")
             .await
             .unwrap();
 
-        assert_eq!(opened.runtime_state, QueryRuntimeState::Live);
+        let (_sync, opened) = open_query(
+            &streaming,
+            &runtime,
+            ACCOUNT,
+            home_key(),
+            Some("win-b"),
+            true,
+        )
+        .await
+        .unwrap();
+
         assert_eq!(opened.source_subscription_id, Some(subscription_id.clone()));
         assert!(streaming.is_subscription_active(&subscription_id).await);
 
@@ -569,7 +644,14 @@ mod tests {
         let (_dir, streaming, runtime, subscription_id) = suspended_home().await;
 
         let sync = SUBSCRIPTION_SYNC.lock().await;
-        let opening = open_query(&streaming, &runtime, ACCOUNT, home_key(), Some("win-b"));
+        let opening = open_query(
+            &streaming,
+            &runtime,
+            ACCOUNT,
+            home_key(),
+            Some("win-b"),
+            true,
+        );
         tokio::pin!(opening);
         tokio::select! {
             _ = &mut opening => panic!("直列の錠を持たれている間に、照会を開いた"),
